@@ -82,7 +82,6 @@ function mapItemData(type, raw) {
       };
       break;
     }
-    }
     case 'armor':
       sys.sp = raw.sp;
       sys.location = raw.location;

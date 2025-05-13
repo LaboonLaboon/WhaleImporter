@@ -1,8 +1,9 @@
 Hooks.once('init', () => console.log("Whale Importer | Initializing v1.5.0"));
 
 // Add Import button to Actors directory (bottom footer)
-// Add Import button to Actors directory (bottom footer)
-Hooks.on('renderActorDirectory', (actorDirectory, html) => {
+Hooks.on('renderDirectory', (app, html) => {
+  // Only add for Actor directory
+  if (app.documentName !== 'Actor') return;
   // Prevent duplicates
   if (html.find('.import-whale').length) return;
   // Add button to footer

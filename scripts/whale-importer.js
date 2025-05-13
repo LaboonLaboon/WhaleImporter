@@ -30,18 +30,32 @@ function mapItemData(type, d) {
   if (d.conceal != null) m.conceal = !!d.conceal;
   if (d.brand) m.brand = d.brand;
   switch(type) {
-    case 'weapon':
-      m.ROF = d.rof; m.damage = d.damage;
-      m.ranged = !(d.melee||d.type==='melee');
-      m.weaponType = d.weaponType||d.category; m.skill=d.skill;
-      m.hands = d.handsRequired; m.conceal = !!d.conceal;
-      m.magazineSize = d.magazine; m.loadedAmmo=d.loadedAmmo||d.ammo;
+    case 'weapon': {
+      m.ROF = d.rof;
+      m.damage = d.damage;
+      // Ranged flag
+      const isMelee = d.melee === true || d.type === 'melee';
+      m.rangedWeapon = !isMelee;
+      // Weapon Type and Skill
+      m.weaponType = d.weaponType || d.category;
+      m.skill = d.skill;
+      // Handling
+      m.hands = d.handsRequired || 1;
+      m.conceal = !!d.conceal;
+      // Magazine and ammo
+      m.magazineSize = d.magazine;
+      m.loadedAmmo = d.loadedAmmo || d.ammo;
       m.compatibleAmmo = d.ammoType;
+      // DV Table
       m.dvTable = d.dvTable;
-      m.autofire = d.autofire; m.suppressive = !!d.suppressive;
+      // Autofire & Suppressive
+      m.autofire = d.autofire;
+      m.suppressive = !!d.suppressive;
+      // Attachments and special
       if (Array.isArray(d.attachments)) m.attachments = d.attachments;
       if (d.special) m.special = d.special;
       break;
+    }
     case 'armor':
       m.SP = d.sp; m.location = d.location; break;
     case 'clothing':

@@ -1,4 +1,4 @@
-Hooks.once('init', () => console.log("Whale Importer | Initializing v1.4.0"));
+Hooks.once('init', () => console.log("Whale Importer | Initializing v1.4.1"));
 
 // Inject import button in Actors directory
 Hooks.on('renderActorDirectory', (app, html) => {
@@ -15,140 +15,147 @@ function validateEntity(data) {
     throw new Error('Invalid entityType');
   if (!data.name) throw new Error('Missing name');
   if (data.entityType==='Item' && !data.type) throw new Error('Missing Item type');
-  if (data.entityType==='Actor'&& !data.type) throw new Error('Missing Actor type');
+  if (data.entityType==='Actor' && !data.type) throw new Error('Missing Actor type');
 }
 
-/** Map raw data to system schema for each item type */
+/**
+ * Map raw data to system schema for each item type,
+ * nesting type-specific fields under system.<type>
+ */
 function mapItemData(type, d) {
-  const m = {};
+  const common = {};
   // universal mappings
-  if (d.description) m.description = { value: d.description };
-  if (d.price != null) m.price = d.price;
-  if (d.category) m.category = d.category;
-  if (d.rarity) m.rarity = d.rarity;
-  if (d.slots != null) m.slots = d.slots;
-  if (d.conceal != null) m.conceal = !!d.conceal;
-  if (d.brand) m.brand = d.brand;
+  if (d.description) common.description = { value: d.description };
+  if (d.price != null) common.price = d.price;
+  if (d.category) common.category = d.category;
+  if (d.rarity) common.rarity = d.rarity;
+  if (d.slots != null) common.slots = d.slots;
+  if (d.brand) common.brand = d.brand;
+
+  const nested = {};
   switch(type) {
     case 'weapon': {
-      m.ROF = d.rof;
-      m.damage = d.damage;
-      // Ranged flag
-      const isMelee = d.melee === true || d.type === 'melee';
-      m.rangedWeapon = !isMelee;
-      // Weapon Type and Skill
-      m.weaponType = d.weaponType || d.category;
-      m.skill = d.skill;
-      // Handling
-      m.hands = d.handsRequired || 1;
-      m.conceal = !!d.conceal;
-      // Magazine and ammo
-      m.magazineSize = d.magazine;
-      m.loadedAmmo = d.loadedAmmo || d.ammo;
-      m.compatibleAmmo = d.ammoType;
-      // DV Table
-      m.dvTable = d.dvTable;
-      // Autofire & Suppressive
-      m.autofire = d.autofire;
-      m.suppressive = !!d.suppressive;
-      // Attachments and special
-      if (Array.isArray(d.attachments)) m.attachments = d.attachments;
-      if (d.special) m.special = d.special;
+      nested.weapon = {
+        rof: d.rof,
+        damage: d.damage,
+        rangedWeapon: !(d.melee === true || d.type === 'melee'),
+        weaponType: d.weaponType || d.category,
+        skill: d.skill,
+        handsRequired: d.handsRequired || 1,
+        conceal: !!d.conceal,
+        magazineSize: d.magazine,
+        loadedAmmo: d.loadedAmmo || d.ammo,
+        compatibleAmmo: d.ammoType,
+        dvTable: d.dvTable,
+        autofire: d.autofire,
+        suppressive: !!d.suppressive,
+        attachments: Array.isArray(d.attachments) ? d.attachments : [],
+        special: d.special || ''
+      };
       break;
     }
     case 'armor':
-      m.SP = d.sp; m.location = d.location; break;
+      nested.armor = { SP: d.sp, location: d.location };
+      break;
     case 'clothing':
-      m.amount = d.amount; m.electronic = !!d.electronic;
-      m.providesHardening = !!d.providesHardening;
+      nested.clothing = { amount: d.amount, electronic: !!d.electronic, providesHardening: !!d.providesHardening };
       break;
-    case 'cyberware': case 'upgrade': case 'program': case 'gear':
-      // handle special flags for electronics
-      m.electronic = !!d.electronic;
-      if (d.providesHardening!=null) m.providesHardening = !!d.providesHardening;
-      if (d.special) m.special = d.special;
+    case 'cyberware':
+    case 'upgrade':
+    case 'program':
+    case 'gear':
+      nested[type] = { electronic: !!d.electronic, providesHardening: !!d.providesHardening, special: d.special || '' };
       break;
-    case 'ammo': {
-      // Ammo sheet fields
-      m.amount = d.amount != null ? d.amount : 1;
-      m.quantity = d.quantity != null ? d.quantity : m.amount;
-      if (d.variety) m.variety = d.variety;
-      if (d.type) m.type = d.type;
-      if (d.ablationAmount != null) m.ablationAmount = d.ablationAmount;
-      if (d.modifyDamage != null) m.modifyDamage = !!d.modifyDamage;
-      if (d.modifyAutofireMax != null) m.modifyAutofireMax = !!d.modifyAutofireMax;
+    case 'ammo':
+      nested.ammo = {
+        amount: d.amount != null ? d.amount : 1,
+        quantity: d.quantity != null ? d.quantity : (d.amount != null ? d.amount : 1),
+        variety: d.variety || '',
+        type: d.type || '',
+        ablationAmount: d.ablationAmount || 0,
+        modifyDamage: !!d.modifyDamage,
+        modifyAutofireMax: !!d.modifyAutofireMax
+      };
       break;
-    }
-    case 'vehicle': {
-      // Vehicle sheet fields
-      if (d.structuralDamagePoints != null) m.structuralDamagePoints = d.structuralDamagePoints;
-      if (d.seats != null) m.seats = d.seats;
-      if (d.combatSpeed != null) m.combatSpeed = d.combatSpeed;
-      if (d.speedNarrative != null) m.speedNarrative = d.speedNarrative;
-      if (d.slots != null) m.slots = d.slots;
+    case 'vehicle':
+      nested.vehicle = {
+        structuralDamagePoints: d.structuralDamagePoints || 0,
+        seats: d.seats || 0,
+        combatSpeed: d.combatSpeed || 0,
+        speedNarrative: d.speedNarrative || '',
+        slots: d.slots || 0
+      };
       break;
-    }
     case 'skill':
-      m.category = d.category; m.difficulty=d.difficulty;
-      m.basic = !!d.basic; m.level=d.level; m.stat=d.stat;
+      nested.skill = { category: d.category, difficulty: d.difficulty, basic: !!d.basic, level: d.level, stat: d.stat };
       break;
     case 'role':
-      m.mainAbilityName = d.mainAbilityName; m.abilityRank=d.abilityRank;
-      m.hasRoll = !!d.hasRoll; m.addRoleAbilityRank=!!d.addRoleAbilityRank;
-      m.stat=d.stat; m.skill=d.skill;
+      nested.role = { mainAbilityName: d.mainAbilityName, abilityRank: d.abilityRank, hasRoll: !!d.hasRoll, addRoleAbilityRank: !!d.addRoleAbilityRank, stat: d.stat, skill: d.skill };
       break;
     case 'program':
-      m.programSize=d.programSize; m.class=d.class;
-      m.ATK=d.ATK; m.DEF=d.DEF; m.REZ=d.REZ;
+      nested.program = { programSize: d.programSize, class: d.class, ATK: d.ATK, DEF: d.DEF, REZ: d.REZ };
       break;
     case 'architecture':
-      m.layers = d.layers; m.DV=d.DV; break;
+      nested.architecture = { layers: d.layers, DV: d.DV };
+      break;
     case 'cyberdeck':
-      m.electronic=!!d.electronic; m.providesHardening=!!d.providesHardening; break;
+      nested.cyberdeck = { electronic: !!d.electronic, providesHardening: !!d.providesHardening };
+      break;
     case 'critical':
-      m.location=d.location; m.quickFixType=d.quickFixType;
-      m.quickFixDV=d.quickFixDV; m.treatmentType=d.treatmentType;
-      m.treatmentDV=d.treatmentDV; m.increasesDeathSave=!!d.increasesDeathSave;
+      nested.critical = { location: d.location, quickFixType: d.quickFixType, quickFixDV: d.quickFixDV, treatmentType: d.treatmentType, treatmentDV: d.treatmentDV, increasesDeathSave: !!d.increasesDeathSave };
+      break;
+    default:
+      // Unexpected type
       break;
   }
-  return m;
+
+  // Merge common and nested under type key
+  return mergeObject(common, nested);
 }
 
-/** Create an Item document */
+/** Create an Item document with nested system data */
 async function createItemDocument(e) {
-  const payload={ name:e.name,type:e.type,system:mapItemData(e.type,e.data||{}),img:e.img };
-  return Item.create(payload);
+  const sysData = mapItemData(e.type, e.data || {});
+  return Item.create({ name: e.name, type: e.type, system: sysData, img: e.img });
 }
 
 /** Import loop */
 async function processImportPayload(raw) {
-  const arr=Array.isArray(raw)?raw:[raw];
-  for(const e of arr){validateEntity(e);
-    if(e.entityType==='Item') await createItemDocument(e);
-    else if(e.entityType==='Actor'){
-      const act=await Actor.create({name:e.name,type:e.type,system:{stats:e.data.stats,role:e.data.role,reputation:e.data.reputation||0},img:e.img});
-      // embed weapons
-      const items=[];
-      (e.data.weapons||[]).forEach(w=>items.push({entityType:'Item',type:'weapon',name:w.name,data:w,img:w.img}));
-      (e.data.armor?[{entityType:'Item',type:'armor',name:e.data.armor.name,data:e.data.armor,img:e.data.armor.img}]:[]).forEach(x=>items.push(x));
-      ['gear','cyberware','upgrades','programs','architecture','vehicle','clothing','critical','skill','role','cyberdeck','ammo'].forEach(key=>{
-        (e.data[key]||[]).forEach(i=>items.push({entityType:'Item',type:key,name:i.name||i,data:i,img:i.img}));
+  const arr = Array.isArray(raw) ? raw : [raw];
+  for (const e of arr) {
+    validateEntity(e);
+    if (e.entityType === 'Item') {
+      await createItemDocument(e);
+    } else if (e.entityType === 'Actor') {
+      const actor = await Actor.create({ name: e.name, type: e.type, system: { stats: e.data.stats, role: e.data.role, reputation: e.data.reputation || 0 }, img: e.img });
+      // Build embedded items
+      const items = [];
+      (e.data.weapons || []).forEach(w => items.push({ entityType: 'Item', type: 'weapon', name: w.name, data: w, img: w.img }));
+      if (e.data.armor) items.push({ entityType: 'Item', type: 'armor', name: e.data.armor.name, data: e.data.armor, img: e.data.armor.img });
+      ['gear','cyberware','upgrades','programs','architecture','vehicle','clothing','critical','skill','role','cyberdeck','ammo'].forEach(key => {
+        (e.data[key] || []).forEach(i => items.push({ entityType: 'Item', type: key, name: i.name || i, data: i, img: i.img }));
       });
-      const docs=await Promise.all(items.map(i=>({name:i.name,type:i.type,system:mapItemData(i.type,i.data||{}),img:i.img})).map(o=>act.createEmbeddedDocuments('Item',[o])));
-      // skills
-      if(e.data.skills) await act.update({'system.skills':e.data.skills});
-    } else if(e.entityType==='RollTable'){
-      await RollTable.create({name:e.name,img:e.img,results:e.results});
+      // Embed items
+      const embedded = items.map(i => ({ name: i.name, type: i.type, system: mapItemData(i.type, i.data || {}), img: i.img }));
+      await actor.createEmbeddedDocuments('Item', embedded);
+      // Update skills
+      if (e.data.skills) await actor.update({ 'system.skills': e.data.skills });
+    } else if (e.entityType === 'RollTable') {
+      await RollTable.create({ name: e.name, img: e.img, results: e.results });
     }
   }
   ui.notifications.info('Whale Importer | Import complete');
 }
 
 /** Import dialog */
-class WhaleImportDialog extends FormApplication{
-  static get defaultOptions(){return mergeObject(super.defaultOptions,{id:'whale-importer-dialog',title:'Import from The Whale',template:'modules/whale-importer/templates/import-dialog.html',width:600,closeOnSubmit:true});}
-  getData(){return{};}
-  async _updateObject(ev,fd){
-    let raw=this.element.find('textarea[name="json-input"]').val();
-    try{const payload=JSON.parse(raw); await processImportPayload(payload);}catch(err){ui.notifications.error('Import failed: '+err.message);}  }
+class WhaleImportDialog extends FormApplication {
+  static get defaultOptions() {
+    return mergeObject(super.defaultOptions, { id: 'whale-importer-dialog', title: 'Import from The Whale', template: 'modules/whale-importer/templates/import-dialog.html', width: 600, closeOnSubmit: true });
+  }
+  getData() { return {}; }
+  async _updateObject(event, formData) {
+    const raw = this.element.find('textarea[name="json-input"]').val();
+    try { const payload = JSON.parse(raw); await processImportPayload(payload); }
+    catch (err) { ui.notifications.error('Import failed: ' + err.message); }
+  }
 }

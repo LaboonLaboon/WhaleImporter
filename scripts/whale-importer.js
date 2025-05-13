@@ -1,10 +1,10 @@
 Hooks.once('init', () => console.log("Whale Importer | Initializing v1.4.1"));
 
 // Inject import button into the Actors directory
-Hooks.on('renderDirectory', (app, html) => {
-  // Only hook the Actors directory
+Hooks.on('renderActorDirectory', (app, html) => {
+  // Ensure this is the Actor directory
   if (app.documentName !== 'Actor') return;
-  // Only add once
+  // Prevent duplicates
   if (html.find('.import-whale').length) return;
   const footer = html.find('.directory-footer');
   const btn = $(
@@ -26,105 +26,115 @@ function validateEntity(data) {
 }
 
 /**
- * Map raw data to system schema for each item type,
- * nesting type-specific fields under system.<type>
+ * Map raw data to system schema for each item type
  */
 function mapItemData(type, d) {
-  const common = {};
-  // universal mappings
-  if (d.description) common.description = { value: d.description };
-  if (d.price != null) common.price = d.price;
-  if (d.category) common.category = d.category;
-  if (d.rarity) common.rarity = d.rarity;
-  if (d.slots != null) common.slots = d.slots;
-  if (d.brand) common.brand = d.brand;
-
-  const nested = {};
-  switch(type) {
-    case 'weapon': {
-      // Weapon fields flattened at system root
-      common.rof = d.rof;
-      common.damage = d.damage;
-      common.rangedWeapon = !(d.melee === true || d.type === 'melee');
-      common.weaponType = d.weaponType || d.category;
-      common.skill = d.skill;
-      common.handsRequired = d.handsRequired || 1;
-      common.conceal = !!d.conceal;
-      common.magazineSize = d.magazine;
-      common.loadedAmmo = d.loadedAmmo || d.ammo;
-      common.compatibleAmmo = d.ammoType;
-      common.dvTable = d.dvTable;
-      common.autofire = d.autofire;
-      common.suppressive = !!d.suppressive;
-      common.attachments = Array.isArray(d.attachments) ? d.attachments : [];
-      common.special = d.special || '';
-      common.description = d.description;
+  const system = {};
+  // Universal
+  if (d.description) system.description = { value: d.description };
+  if (d.price != null) system.price = d.price;
+  if (d.category) system.category = d.category;
+  if (d.rarity) system.rarity = d.rarity;
+  if (d.slots != null) system.slots = d.slots;
+  if (d.brand) system.brand = d.brand;
+  // Type-specific
+  switch (type) {
+    case 'weapon':
+      system.rof = d.rof;
+      system.damage = d.damage;
+      system.rangedWeapon = !!d.rangedWeapon;
+      system.weaponType = d.weaponType;
+      system.skill = d.skill;
+      system.handsRequired = d.handsRequired;
+      system.conceal = !!d.conceal;
+      system.magazineSize = d.magazine;
+      system.loadedAmmo = d.loadedAmmo;
+      system.compatibleAmmo = d.ammoType;
+      system.dvTable = d.dvTable;
+      system.autofire = d.autofire;
+      system.suppressive = !!d.suppressive;
+      system.attachments = d.attachments || [];
+      system.special = d.special;
       break;
-    }
-    }
     case 'armor':
-      nested.armor = { SP: d.sp, location: d.location };
+      system.SP = d.sp;
+      system.location = d.location;
       break;
     case 'clothing':
-      nested.clothing = { amount: d.amount, electronic: !!d.electronic, providesHardening: !!d.providesHardening };
+      system.amount = d.amount;
+      system.electronic = !!d.electronic;
+      system.providesHardening = !!d.providesHardening;
       break;
     case 'cyberware':
     case 'upgrade':
-    case 'program':
     case 'gear':
-      nested[type] = { electronic: !!d.electronic, providesHardening: !!d.providesHardening, special: d.special || '' };
-      break;
-    case 'ammo':
-      nested.ammo = {
-        amount: d.amount != null ? d.amount : 1,
-        quantity: d.quantity != null ? d.quantity : (d.amount != null ? d.amount : 1),
-        variety: d.variety || '',
-        type: d.type || '',
-        ablationAmount: d.ablationAmount || 0,
-        modifyDamage: !!d.modifyDamage,
-        modifyAutofireMax: !!d.modifyAutofireMax
-      };
-      break;
-    case 'vehicle':
-      nested.vehicle = {
-        structuralDamagePoints: d.structuralDamagePoints || 0,
-        seats: d.seats || 0,
-        combatSpeed: d.combatSpeed || 0,
-        speedNarrative: d.speedNarrative || '',
-        slots: d.slots || 0
-      };
-      break;
-    case 'skill':
-      nested.skill = { category: d.category, difficulty: d.difficulty, basic: !!d.basic, level: d.level, stat: d.stat };
-      break;
-    case 'role':
-      nested.role = { mainAbilityName: d.mainAbilityName, abilityRank: d.abilityRank, hasRoll: !!d.hasRoll, addRoleAbilityRank: !!d.addRoleAbilityRank, stat: d.stat, skill: d.skill };
+      system.electronic = !!d.electronic;
+      system.providesHardening = !!d.providesHardening;
+      system.special = d.special;
       break;
     case 'program':
-      nested.program = { programSize: d.programSize, class: d.class, ATK: d.ATK, DEF: d.DEF, REZ: d.REZ };
+      system.programSize = d.programSize;
+      system.class = d.class;
+      system.ATK = d.ATK;
+      system.DEF = d.DEF;
+      system.REZ = d.REZ;
       break;
     case 'architecture':
-      nested.architecture = { layers: d.layers, DV: d.DV };
-      break;
-    case 'cyberdeck':
-      nested.cyberdeck = { electronic: !!d.electronic, providesHardening: !!d.providesHardening };
+      system.layers = d.layers;
+      system.DV = d.DV;
       break;
     case 'critical':
-      nested.critical = { location: d.location, quickFixType: d.quickFixType, quickFixDV: d.quickFixDV, treatmentType: d.treatmentType, treatmentDV: d.treatmentDV, increasesDeathSave: !!d.increasesDeathSave };
+      system.location = d.location;
+      system.quickFixType = d.quickFixType;
+      system.quickFixDV = d.quickFixDV;
+      system.treatmentType = d.treatmentType;
+      system.treatmentDV = d.treatmentDV;
+      system.increasesDeathSave = !!d.increasesDeathSave;
+      break;
+    case 'ammo':
+      system.amount = d.amount;
+      system.quantity = d.quantity;
+      system.variety = d.variety;
+      system.type = d.type;
+      system.ablationAmount = d.ablationAmount;
+      system.modifyDamage = !!d.modifyDamage;
+      system.modifyAutofireMax = !!d.modifyAutofireMax;
+      break;
+    case 'vehicle':
+      system.structuralDamagePoints = d.structuralDamagePoints;
+      system.seats = d.seats;
+      system.combatSpeed = d.combatSpeed;
+      system.speedNarrative = d.speedNarrative;
+      break;
+    case 'skill':
+      system.category = d.category;
+      system.difficulty = d.difficulty;
+      system.basic = !!d.basic;
+      system.level = d.level;
+      system.stat = d.stat;
+      break;
+    case 'role':
+      system.mainAbilityName = d.mainAbilityName;
+      system.abilityRank = d.abilityRank;
+      system.hasRoll = !!d.hasRoll;
+      system.addRoleAbilityRank = !!d.addRoleAbilityRank;
+      system.stat = d.stat;
+      system.skill = d.skill;
+      break;
+    case 'cyberdeck':
+      system.electronic = !!d.electronic;
+      system.providesHardening = !!d.providesHardening;
       break;
     default:
-      // Unexpected type
       break;
   }
-
-  // Merge common and nested under type key
-  return mergeObject(common, nested);
+  return system;
 }
 
-/** Create an Item document with nested system data */
+/** Create an Item document with system data */
 async function createItemDocument(e) {
-  const sysData = mapItemData(e.type, e.data || {});
-  return Item.create({ name: e.name, type: e.type, system: sysData, img: e.img });
+  const sys = mapItemData(e.type, e.data || {});
+  return Item.create({ name: e.name, type: e.type, system: sys, img: e.img });
 }
 
 /** Import loop */
@@ -136,17 +146,14 @@ async function processImportPayload(raw) {
       await createItemDocument(e);
     } else if (e.entityType === 'Actor') {
       const actor = await Actor.create({ name: e.name, type: e.type, system: { stats: e.data.stats, role: e.data.role, reputation: e.data.reputation || 0 }, img: e.img });
-      // Build embedded items
       const items = [];
       (e.data.weapons || []).forEach(w => items.push({ entityType: 'Item', type: 'weapon', name: w.name, data: w, img: w.img }));
       if (e.data.armor) items.push({ entityType: 'Item', type: 'armor', name: e.data.armor.name, data: e.data.armor, img: e.data.armor.img });
       ['gear','cyberware','upgrades','programs','architecture','vehicle','clothing','critical','skill','role','cyberdeck','ammo'].forEach(key => {
         (e.data[key] || []).forEach(i => items.push({ entityType: 'Item', type: key, name: i.name || i, data: i, img: i.img }));
       });
-      // Embed items
       const embedded = items.map(i => ({ name: i.name, type: i.type, system: mapItemData(i.type, i.data || {}), img: i.img }));
       await actor.createEmbeddedDocuments('Item', embedded);
-      // Update skills
       if (e.data.skills) await actor.update({ 'system.skills': e.data.skills });
     } else if (e.entityType === 'RollTable') {
       await RollTable.create({ name: e.name, img: e.img, results: e.results });

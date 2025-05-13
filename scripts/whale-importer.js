@@ -1,14 +1,20 @@
 Hooks.once('init', () => console.log("Whale Importer | Initializing v1.5.0"));
 
-// Add Import button to Actors directory header
-Hooks.on('renderActorDirectory', (app, html) => {
+// Add Import button to Actors directory (bottom footer)
+Hooks.on('renderDirectory', (app, html) => {
+  // Only add to Actor directory
+  if (app.documentName !== 'Actor') return;
+  // Prevent duplicates
   if (html.find('.import-whale').length) return;
-  const headerActions = html.find('.directory-header .header-actions');
+  // Add button to footer
+  const footer = html.find('.directory-footer');
   const btn = $(
-    `<button class="import-whale btn"><i class="fas fa-file-import"></i> Import from Whale</button>`
+    `<button class="import-whale btn">
+      <i class="fas fa-file-import"></i> Import from Whale
+    </button>`
   );
   btn.on('click', () => new WhaleImportDialog().render(true));
-  headerActions.append(btn);
+  footer.append(btn);
 });
 
 // Handle postMessage direct exports
@@ -35,127 +41,442 @@ function validateEntity(data) {
 
 /** Map raw JSON fields into CPR core schema */
 function mapItemData(type, raw) {
-  // If user provided full system object (from YAML), use it directly
-  if (raw.system && typeof raw.system === 'object') return raw.system;
   const sys = {};
-  // Universal
-  if (raw.description) sys.description = { value: raw.description };
-  if (raw.price != null) sys.price = raw.price;
-  if (raw.category) sys.category = raw.category;
-  if (raw.rarity) sys.rarity = raw.rarity;
-  if (raw.slots != null) sys.slots = raw.slots;
-  if (raw.brand) sys.brand = raw.brand;
 
-  // Type-specific based on packs/core definitions
+  // Universal fields
+  if (raw.description)       sys.description        = { value: raw.description };
+  if (raw.price != null)     sys.price              = { market: raw.price };
+  if (raw.category)          sys.category           = raw.category;
+  if (raw.quality)           sys.quality            = raw.quality;
+  if (raw.revealed != null)  sys.revealed           = !!raw.revealed;
+  if (raw.favorite != null)  sys.favorite           = !!raw.favorite;
+
   switch (type) {
+    ////////////////////////////////////
+    // WEAPONS
+    ////////////////////////////////////
     case 'weapon': {
-      // Map raw values to compendium skill and ammo IDs
       const skillMap = {
-        SMG: 'Handgun', AssaultRifle: 'Handgun', MediumPistol: 'Handgun', HeavyPistol: 'Handgun', SniperRifle: 'Handgun', Shotgun: 'Handgun',
-        Bow: 'Archery', ThrownWeapon: 'Archery', RocketLauncher: 'Heavy Weapon', GrenadeLauncher: 'Heavy Weapon',
-        CombatKnife: 'Melee Weapon', BaseballBat: 'Melee Weapon', Tomahawk: 'Melee Weapon', 'Melee': 'Melee Weapon'
+        SMG: 'Handgun', MediumPistol: 'Handgun', HeavyPistol: 'Handgun',
+        AssaultRifle: 'Handgun', SniperRifle: 'Handgun', Shotgun: 'Handgun',
+        Bow: 'Archery', ThrownWeapon: 'Archery',
+        RocketLauncher: 'Heavy Weapon', GrenadeLauncher: 'Heavy Weapon',
+        CombatKnife: 'Melee Weapon', BaseballBat: 'Melee Weapon', Tomahawk: 'Melee Weapon'
       };
       const ammoMap = {
-        paintball: 'paintball', rifle: 'rifle', arrow: 'arrow', shotgunShell: 'shotgunShell', shotgunSlug: 'shotgunSlug', grenade: 'grenade',
-        heavyPistol: 'heavyPistol', vHeavyPistol: 'vHeavyPistol', medPistol: 'medPistol', battery: 'battery', rocket: 'rocket', customAmmo: 'customAmmo'
+        paintball: 'paintball', rifle: 'rifle', arrow: 'arrow',
+        shotgunShell: 'shotgunShell', shotgunSlug: 'shotgunSlug', grenade: 'grenade',
+        heavyPistol: 'heavyPistol', vHeavyPistol: 'vHeavyPistol', medPistol: 'medPistol',
+        battery: 'battery', rocket: 'rocket', customAmmo: 'customAmmo'
       };
-      const mappedSkill = skillMap[raw.skill] || raw.skill;
-      const ammoKey = raw.ammoType ? raw.ammoType.replace(/ /g,'') : '';
-      const mappedAmmo = ammoMap[ammoKey] || ammoKey;
+
       sys.weapon = {
-        rof: raw.rof,
-        damage: raw.damage,
-        isRanged: !!raw.rangedWeapon,
-        weaponType: raw.weaponType.toLowerCase().replace(/ /g,'_'),
-        weaponSkill: mappedSkill,
-        handsReq: raw.handsRequired,
-        concealable: { concealable: !!raw.conceal, isConcealed: false },
-        magazine: { max: raw.magazine, value: raw.loadedAmmo || 0 },
-        ammoVariety: mappedAmmo ? [mappedAmmo] : [],
-        dvTable: raw.dvTable,
-        fireModes: { autoFire: raw.autofire || 0, suppressiveFire: !!raw.suppressive },
-        installedItems: { allowed: true, allowedTypes: ['itemUpgrade','ammo'], list: [], slots: raw.slots || 0, usedSlots: 0 },
+        attackmod:  raw.attackmod ?? 0,
+        rof:        raw.rof,
+        damage:     raw.damage,
+        ammoVariety: raw.ammoType
+          ? [ ammoMap[ raw.ammoType.replace(/\s+/g,'') ] || raw.ammoType ]
+          : [],
+        brand:      raw.brand || '',
+        concealable:{ concealable: !!raw.conceal, isConcealed: false },
         critFailEffect: raw.special || '',
+        dvTable:    raw.dvTable || '',
+        equipped:   raw.equipped || 'owned',
+        favorite:   raw.favorite ?? false,
+        fireModes:  { autoFire: raw.autofire || 0, suppressiveFire: !!raw.suppressive },
+        handsReq:   raw.handsRequired,
+        installedItems: {
+          allowed: true,
+          allowedTypes: ['itemUpgrade','ammo'],
+          list: [],
+          slots: raw.slots || 0,
+          usedSlots: 0
+        },
+        isRanged:   !!raw.rangedWeapon,
+        magazine:   { max: raw.magazine||0, value: raw.loadedAmmo||0 },
+        price:      { market: raw.price||0 },
+        quality:    raw.quality || raw.rarity || 'standard',
+        source:     raw.source || { book:'Core', page:0 },
+        unarmedAutomaticCalculation: raw.unarmedAutomaticCalculation ?? true,
+        usage:      raw.usage || 'equipped',
+        usesType:   raw.usesType || 'magazine',
+        weaponSkill: skillMap[ raw.skill ] || raw.skill,
+        weaponType:  (raw.weaponType || '').toLowerCase().replace(/\s+/g,'_'),
+        description: sys.description
+      };
+      break;
+    }
+
+    ////////////////////////////////////
+    // ARMOR
+    ////////////////////////////////////
+    case 'armor': {
+      sys.bodyLocation = {
+        sp: raw.spBody ?? raw.sp ?? 0,
+        ablation: raw.ablationBody || 0
+      };
+      sys.headLocation = {
+        sp: raw.spHead || 0,
+        ablation: raw.ablationHead || 0
+      };
+      sys.brand               = raw.brand || '';
+      sys.concealable         = { concealable: !!raw.conceal, isConcealed: false };
+      sys.equipped            = raw.equipped || 'owned';
+      sys.favorite            = raw.favorite ?? false;
+      sys.installedItems      = {
+        allowed: true,
+        allowedTypes: ['itemUpgrade'],
+        list: [],
+        slots: raw.slots || 0,
+        usedSlots: 0
+      };
+      sys.isBodyLocation      = raw.isBodyLocation ?? true;
+      sys.isHeadLocation      = raw.isHeadLocation ?? false;
+      sys.isShield            = raw.isShield ?? false;
+      sys.shieldHitPoints     = { max: raw.shieldMax || 0, value: raw.shieldValue || 0 };
+      sys.penalty             = raw.penalty || 0;
+      sys.price               = { market: raw.price || 0 };
+      sys.quality             = raw.quality || 'standard';
+      sys.revealed            = raw.revealed ?? true;
+      sys.source              = raw.source || { book:'Core', page:0 };
+      sys.usage               = raw.usage || 'equipped';
+      break;
+    }
+
+    ////////////////////////////////////
+    // CLOTHING
+    ////////////////////////////////////
+    case 'clothing': {
+      sys.clothing = {
+        amount: raw.amount || 1,
+        brand: raw.brand || "",
+        concealable: { concealable: !!raw.conceal, isConcealed: false },
+        description: { value: raw.description || "" },
+        isElectronic: !!raw.electronic,
+        providesHardening: !!raw.providesHardening
+      };
+      sys.equipped = raw.equipped || 'owned';
+      sys.favorite = raw.favorite ?? false;
+      sys.installedItems = {
+        allowed: true,
+        allowedTypes: ['itemUpgrade'],
+        list: raw.installedItems?.list || [],
+        slots: raw.installedItems?.slots ?? raw.slots ?? 0,
+        usedSlots: raw.installedItems?.usedSlots || 0
+      };
+      sys.price = { market: raw.price || 0 };
+      sys.quality = raw.quality || 'standard';
+      sys.revealed = raw.revealed ?? true;
+      sys.source = raw.source || { book: 'Core', page: 0 };
+      sys.style = raw.style || raw.category || '';
+      sys.type = raw.type || '';
+      sys.usage = raw.usage || 'equipped';
+      break;
+    }
+    }
+    }
+
+    ////////////////////////////////////
+    // CYBERWARE
+    ////////////////////////////////////
+    case 'cyberware': {
+      // As defined in packs/core/cyberware/*.yaml
+      sys.cyberware = {
+        attackmod: raw.attackmod ?? 0,
+        brand: raw.brand || "",
+        concealable: { concealable: !!raw.conceal, isConcealed: false },
+        damage: raw.damage || "",
+        critFailEffect: raw.special || "",
+        dvTable: raw.dvTable || "",
+        equipped: raw.equipped || "owned",
+        favorite: raw.favorite ?? false,
+        fireModes: { autoFire: raw.autofire || 0, suppressiveFire: !!raw.suppressive },
+        handsReq: raw.handsRequired || 1,
+        humanityLoss: { roll: raw.humanityRoll || "", static: raw.humanityStatic || 0 },
+        installedItems: {
+          allowed: true,
+          allowedTypes: ['itemUpgrade','program'],
+          list: [],
+          slots: raw.slots || 0,
+          usedSlots: 0
+        },
+        isElectronic: !!raw.electronic,
+        isRanged: !!raw.isRanged,
+        isWeapon: !!raw.isWeapon,
+        magazine: { max: raw.magazine || 0, value: raw.loadedAmmo || 0 },
+        modifiers: raw.modifiers || {},
+        price: { market: raw.price ?? 0 },
+        providesHardening: !!raw.providesHardening,
+        quality: raw.quality || 'standard',
+        revealed: raw.revealed ?? true,
+        rof: raw.rof || 0,
+        size: raw.size || 0,
+        source: raw.source || { book: 'Core', page: 0 },
+        unarmedAutomaticCalculation: raw.unarmedAutomaticCalculation ?? true,
+        usage: raw.usage || 'installed',
+        usesType: raw.usesType || 'magazine',
+        weaponSkill: raw.weaponSkill || '',
+        weaponType: raw.weaponType || ''
+      };
+      break;
+    }
+    }
+
+    ////////////////////////////////////
+    // DRUG
+    ////////////////////////////////////
+    case 'drug': {
+      // core/drugs/*.yaml
+      sys.drug = {
+        rating: raw.rating || 0,
+        addictionCheck: raw.addictionCheck || 0,
+        cumulative: raw.cumulative ?? false,
+        description: { value: raw.description || '' },
+        price: { market: raw.price || 0 }
+      };
+      break;
+    }
+
+    ////////////////////////////////////
+    // UPGRADE & GEAR
+    ////////////////////////////////////
+    case 'upgrade': {
+      // packs/core/upgrades/*.yaml
+      sys.upgrade = {
+        ammoVariety: raw.ammoVariety || [],
+        attackmod: raw.attackmod || 0,
+        brand: raw.brand || "",
+        concealable: { concealable: !!raw.conceal, isConcealed: false },
+        damage: raw.damage || "",
+        dvTable: raw.dvTable || "",
+        description: { value: raw.description || "" },
+        equipped: raw.equipped || "owned",
+        favorite: raw.favorite ?? false,
+        fireModes: { autoFire: raw.autofire || 0, suppressiveFire: !!raw.suppressive },
+        handsReq: raw.handsRequired || 0,
+        installLocation: raw.installLocation || "",
+        installedItems: {
+          allowed: true,
+          // Upgrades install only into upgrade slots
+          allowedTypes: raw.installedItems?.allowedTypes || ['itemUpgrade'],
+          list: raw.installedItems?.list || [],
+          slots: raw.installedItems?.slots ?? raw.slots ?? 0,
+          usedSlots: raw.installedItems?.usedSlots || 0
+        },
+        isElectronic: !!raw.electronic,
+        magazine: { max: raw.magazine || 0, value: raw.loadedAmmo || raw.ammo || 0 },
+        modifiers: raw.modifiers || {},
         price: { market: raw.price || 0 },
-        quality: raw.quality || raw.rarity || 'standard',
+        providesHardening: !!raw.providesHardening,
+        quality: raw.quality || 'standard',
+        revealed: raw.revealed ?? true,
+        rof: raw.rof || 0,
+        size: raw.size || 0,
+        source: raw.source || { book: 'Core', page: 0 },
+        unarmedAutomaticCalculation: raw.unarmedAutomaticCalculation ?? true,
+        type: raw.type || 'itemUpgrade',
+        usage: raw.usage || 'equipped',
+        usesType: raw.usesType || 'magazine',
+        weaponSkill: raw.weaponSkill || '',
+        weaponType: raw.weaponType || '',
+      };
+      break;
+    }
+    }
+    }
+    }
+
+    case 'gear': {
+      // packs/core/gear/*.yaml
+      sys.gear = {
+        brand: raw.brand || "",
+        concealable: { concealable: !!raw.conceal, isConcealed: false },
+        description: { value: raw.description || "" },
+        equipped: raw.equipped || "owned",
+        favorite: raw.favorite ?? false,
+        installLocation: raw.installLocation || "",
+        installedItems: {
+          allowed: true,
+          // Gear installs upgrades and programs
+          allowedTypes: ['itemUpgrade','program'],
+          list: [],
+          slots: raw.slots || 0,
+          usedSlots: 0
+        },
+        isElectronic: !!raw.electronic,
+        price: { market: raw.price || 0 },
+        providesHardening: !!raw.providesHardening,
+        quality: raw.quality || 'standard',
+        revealed: raw.revealed ?? true,
+        size: raw.size || 0,
+        source: raw.source || { book: 'Core', page: 0 }
+      };
+      break;
+    }
+    }
+    }
+
+
+    ////////////////////////////////////
+    // PROGRAM
+    ////////////////////////////////////
+    case 'program': {
+      sys.program = {
+        programSize: raw.programSize,
+        class: raw.class,
+        atk: raw.ATK,
+        def: raw.DEF,
+        rez: raw.REZ,
+        description: { value: raw.description || '' },
+        price: { market: raw.price || 0 }
+      };
+      break;
+    }
+
+    ////////////////////////////////////
+    // ARCHITECTURE (NET ARCH)
+    ////////////////////////////////////
+    case 'architecture': {
+      sys.architecture = {
+        layers: raw.layers,
+        dv: raw.DV,
+        description: { value: raw.description || '' },
+        price: { market: raw.price || 0 }
+      };
+      break;
+    }
+
+    ////////////////////////////////////
+    // CRITICAL INJURIES
+    ////////////////////////////////////
+    case 'critical': {
+      sys.critical = {
+        location: raw.location,
+        quickFixType: raw.quickFixType,
+        quickFixDV: raw.quickFixDV,
+        treatmentType: raw.treatmentType,
+        treatmentDV: raw.treatmentDV,
+        increasesDeathSave: !!raw.increasesDeathSave,
         description: { value: raw.description || '' }
       };
       break;
     }
-    case 'armor':
-      sys.sp = raw.sp;
-      sys.location = raw.location;
+
+    ////////////////////////////////////
+    // AMMO
+    ////////////////////////////////////
+    case 'ammo': {
+      sys.ammo = {
+        amount: raw.amount ?? 1,
+        quantity: raw.quantity ?? raw.amount ?? 1,
+        variety: raw.variety || '',
+        type: raw.type || '',
+        ablationAmount: raw.ablationAmount || 0,
+        modifyDamage: !!raw.modifyDamage,
+        modifyAutofireMax: !!raw.modifyAutofireMax,
+        price: { market: raw.price || 0 }
+      };
       break;
-    case 'clothing':
-      sys.amount = raw.amount;
-      sys.electronic = !!raw.electronic;
-      sys.providesHardening = !!raw.providesHardening;
+    }
+
+    ////////////////////////////////////
+    // VEHICLE
+    ////////////////////////////////////
+    case 'vehicle': {
+      sys.vehicle = {
+        structuralDamagePoints: raw.structuralDamagePoints || 0,
+        seats: raw.seats || 0,
+        combatSpeed: raw.combatSpeed || 0,
+        speedNarrative: raw.speedNarrative || ''
+      };
+      sys.installedItems = {
+        allowed: true,
+        allowedTypes: ['itemUpgrade','weapon'],
+        list: [],
+        slots: raw.slots || 0,
+        usedSlots: 0
+      };
+      sys.price = { market: raw.price || 0 };
+      sys.quality = raw.quality || 'standard';
+      sys.revealed = raw.revealed ?? true;
       break;
-    case 'cyberware':
-    case 'upgrade':
-    case 'gear':
-      sys.electronic = !!raw.electronic;
-      sys.providesHardening = !!raw.providesHardening;
-      sys.special = raw.special || '';
+    }
+    }
+
+    ////////////////////////////////////
+    // SKILL
+    ////////////////////////////////////
+    case 'skill': {
+      sys.skill = {
+        category: raw.category,
+        difficulty: raw.difficulty,
+        basic: !!raw.basic,
+        level: raw.level,
+        stat: raw.stat,
+        description: { value: raw.description || '' }
+      };
       break;
-    case 'program':
-      sys.programSize = raw.programSize;
-      sys.class = raw.class;
-      sys.atk = raw.ATK;
-      sys.def = raw.DEF;
-      sys.rez = raw.REZ;
+    }
+
+    ////////////////////////////////////
+    // ROLE
+    ////////////////////////////////////
+    case 'role': {
+      // packs/core/roles/*.yaml
+      sys.role = {
+        abilities: raw.abilities || [],
+        addRoleAbilityRank: !!raw.addRoleAbilityRank,
+        bonusRatio: raw.bonusRatio != null ? raw.bonusRatio : 1,
+        bonuses: raw.bonuses || [],
+        description: { value: raw.description || '' },
+        favorite: raw.favorite ?? false,
+        hasRoll: !!raw.hasRoll,
+        isSituational: !!raw.isSituational,
+        mainRoleAbility: raw.mainRoleAbility || '',
+        onByDefault: !!raw.onByDefault,
+        rank: raw.rank || 0,
+        skill: raw.skill || '',
+        source: raw.source || { book: '', page: 0 },
+        stat: raw.stat || '',
+        universalBonuses: raw.universalBonuses || []
+      };
       break;
-    case 'architecture':
-      sys.layers = raw.layers;
-      sys.dv = raw.DV;
+    }
+    }
+
+    ////////////////////////////////////
+    // CYBERDECK
+    ////////////////////////////////////
+    case 'cyberdeck': {
+      sys.cyberdeck = {
+        brand: raw.brand || '',
+        concealable: { concealable: !!raw.conceal, isConcealed: false },
+        description: { value: raw.description || '' },
+        equipped: raw.equipped || 'owned',
+        favorite: raw.favorite ?? false,
+        installLocation: raw.installLocation || '',
+        installedItems: {
+          allowed: true,
+          allowedTypes: raw.installedItems?.allowedTypes || ['itemUpgrade','program'],
+          list: raw.installedItems?.list || [],
+          slots: raw.installedItems?.slots ?? raw.slots ?? 0,
+          usedSlots: raw.installedItems?.usedSlots || 0
+        },
+        isElectronic: !!raw.electronic,
+        price: { market: raw.price ?? 0 },
+        providesHardening: !!raw.providesHardening,
+        quality: raw.quality || 'standard',
+        revealed: raw.revealed ?? true,
+        size: raw.size || 0,
+        source: raw.source || { book:'Core', page:0 }
+      };
       break;
-    case 'critical':
-      sys.location = raw.location;
-      sys.quickFixType = raw.quickFixType;
-      sys.quickFixDV = raw.quickFixDV;
-      sys.treatmentType = raw.treatmentType;
-      sys.treatmentDV = raw.treatmentDV;
-      sys.increasesDeathSave = !!raw.increasesDeathSave;
-      break;
-    case 'ammo':
-      sys.amount = raw.amount ?? 1;
-      sys.quantity = raw.quantity ?? sys.amount;
-      sys.variety = raw.variety;
-      sys.type = raw.type;
-      sys.ablationAmount = raw.ablationAmount || 0;
-      sys.modifyDamage = !!raw.modifyDamage;
-      sys.modifyAutofireMax = !!raw.modifyAutofireMax;
-      break;
-    case 'vehicle':
-      sys.structuralDamagePoints = raw.structuralDamagePoints;
-      sys.seats = raw.seats;
-      sys.combatSpeed = raw.combatSpeed;
-      sys.speedNarrative = raw.speedNarrative;
-      break;
-    case 'skill':
-      sys.category = raw.category;
-      sys.difficulty = raw.difficulty;
-      sys.basic = !!raw.basic;
-      sys.level = raw.level;
-      sys.stat = raw.stat;
-      break;
-    case 'role':
-      sys.mainAbilityName = raw.mainAbilityName;
-      sys.abilityRank = raw.abilityRank;
-      sys.hasRoll = !!raw.hasRoll;
-      sys.addRoleAbilityRank = !!raw.addRoleAbilityRank;
-      sys.stat = raw.stat;
-      sys.skill = raw.skill;
-      break;
-    case 'cyberdeck':
-      sys.electronic = !!raw.electronic;
-      sys.providesHardening = !!raw.providesHardening;
-      break;
-    default:
-      break;
+    }
   }
+
   return sys;
 }
+
 
 /** Create an Item document */
 async function createItemDocument(entry) {

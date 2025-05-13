@@ -36,19 +36,31 @@ function mapItemData(type, rawData) {
   if (rawData.category) mapped.category = rawData.category;
 
   switch (type) {
-    case 'weapon':
+    case 'weapon': {
+      // Rate of Fire and Damage
       mapped.ROF = rawData.rof;
       mapped.damage = rawData.damage;
-      mapped.skill = rawData.type === 'melee' ? 'Brawling' : 'Handgun';
+      // Melee vs Ranged
+      const melee = rawData.melee === true || rawData.type === 'melee';
+      mapped.ranged = !melee;
+      // Weapon Type (e.g., SMG, Handgun, Assault Rifle)
+      mapped.weaponType = rawData.weaponType || rawData.category;
+      // Skill (must match system, e.g., Handgun, Brawling)
+      mapped.skill = rawData.skill || (melee ? 'Brawling' : 'Handgun');
+      // Handling
       mapped.hands = rawData.handsRequired || 1;
       mapped.conceal = !!rawData.conceal;
+      // Magazine and ammo
       mapped.magazineSize = rawData.magazine || rawData.ammo;
       mapped.loadedAmmo = rawData.ammo || rawData.magazine;
-      mapped.dvTable = rawData.range ? `DV ${rawData.range}` : null;
-      mapped.autofire = rawData.autofire || 1;
+      mapped.compatibleAmmo = rawData.ammoType;
+      // DV Table
+      mapped.dvTable = rawData.dvTable || (rawData.range ? `DV ${rawData.range}` : null);
+      // Autofire & Suppressive
+      mapped.autofire = rawData.autofire || rawData.fireMode || 1;
       mapped.suppressive = !!rawData.suppressive;
-      if (rawData.ammoType) mapped.ammoType = rawData.ammoType;
       break;
+    }
     case 'armor':
       mapped.SP = rawData.sp;
       mapped.location = rawData.location;
@@ -56,14 +68,14 @@ function mapItemData(type, rawData) {
     case 'ammo':
       mapped.quantity = rawData.quantity;
       break;
-    // Add other item types as needed
-    default: break;
+    // Extend for other item types as needed
   }
 
-  // Attachments or upgrades
+  // Attachments or upgrades slots
   if (Array.isArray(rawData.attachments)) mapped.attachments = rawData.attachments;
   if (rawData.slots != null) mapped.slots = rawData.slots;
   return mapped;
+}
 }
 
 /**

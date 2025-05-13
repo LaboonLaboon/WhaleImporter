@@ -103,12 +103,25 @@ function mapItemData(type, raw) {
       sys.usage = raw.usage || 'equipped';
       break;
     }
-    // CLOTHING
+        // CLOTHING
     case 'clothing': {
-      sys.clothing = { amount: raw.amount || 1, brand: raw.brand || '', concealable: { concealable: !!raw.conceal, isConcealed: false }, description: sys.description, isElectronic: !!raw.electronic, providesHardening: !!raw.providesHardening };
+      sys.clothing = {
+        amount: raw.amount || 1,
+        brand: raw.brand || "",
+        concealable: { concealable: !!raw.conceal, isConcealed: false },
+        description: sys.description,
+        isElectronic: !!raw.electronic,
+        providesHardening: !!raw.providesHardening
+      };
       sys.equipped = raw.equipped || 'owned';
       sys.favorite = raw.favorite || false;
-      sys.installedItems = { allowed: true, allowedTypes: ['itemUpgrade'], list: raw.installedItems?.list || [], slots: raw.installedItems?.slots ?? raw.slots || 0, usedSlots: raw.installedItems?.usedSlots || 0 };
+      sys.installedItems = {
+        allowed: true,
+        allowedTypes: ['itemUpgrade'],
+        list: raw.installedItems?.list || [],
+        slots: raw.installedItems?.slots ?? raw.slots || 0,
+        usedSlots: raw.installedItems?.usedSlots || 0
+      };
       sys.price = { market: raw.price || 0 };
       sys.quality = raw.quality || 'standard';
       sys.revealed = raw.revealed ?? true;
@@ -118,8 +131,8 @@ function mapItemData(type, raw) {
       sys.usage = raw.usage || 'equipped';
       break;
     }
-    // CYBERWARE
-    case 'cyberware': {
+
+    // CYBERWARE: {
       sys.cyberware = {
         attackmod: raw.attackmod || 0,
         rof: raw.rof || 0,

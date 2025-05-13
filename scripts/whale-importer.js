@@ -169,7 +169,7 @@ function mapItemData(type, raw) {
     ////////////////////////////////////
     // CYBERWARE
     ////////////////////////////////////
-    case 'cyberware': {: {
+    case 'cyberware': {
       // As defined in packs/core/cyberware/*.yaml
       sys.cyberware = {
         attackmod: raw.attackmod ?? 0,

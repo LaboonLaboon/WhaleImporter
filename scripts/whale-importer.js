@@ -1,4 +1,5 @@
 // Whale Importer for Cyberpunk RED Foundry VTT
+console.log('🐋 Whale Importer | Script loaded');
 // File: modules/whale-importer/scripts/whale-importer.js
 
 Hooks.once('ready', () => {

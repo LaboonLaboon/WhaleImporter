@@ -2,27 +2,30 @@ Hooks.once('init', () => {
   console.log("Whale Importer | Initializing");
 });
 
-Hooks.once('ready', () => {
-  // Add import button to Actors directory
-  const footer = ui.actors.element.querySelector('.directory-footer');
-  const btn = document.createElement('button');
-  btn.className = 'import-whale btn';
-  btn.innerHTML = '<i class="fas fa-file-import"></i> Import from Whale';
-  btn.addEventListener('click', () => new WhaleImportDialog().render(true));
+// Add import button whenever the Actor directory is rendered
+Hooks.on('renderActorDirectory', (app, html) => {
+  if (html.find('.import-whale').length) return;
+  const footer = html.find('.directory-footer');
+  const btn = $(
+    `<button class='import-whale btn'>
+      <i class='fas fa-file-import'></i> Import from Whale
+    </button>`
+  );
+  btn.on('click', () => new WhaleImportDialog().render(true));
   footer.prepend(btn);
+});
 
-  // Listen for direct exports from The Whale UI
-  window.addEventListener('message', async event => {
-    if (event.origin !== 'https://chatgpt.com') return;
-    const payload = event.data?.whaleImport;
-    if (!payload) return;
-    try {
-      await processImportPayload(payload);
-      ui.notifications.info('Imported data from The Whale directly');
-    } catch (err) {
-      ui.notifications.error(`Direct import failed: ${err.message}`);
-    }
-  });
+// Listen for direct exports from The Whale UI
+window.addEventListener('message', async event => {
+  if (event.origin !== 'https://chatgpt.com') return;
+  const payload = event.data?.whaleImport;
+  if (!payload) return;
+  try {
+    await processImportPayload(payload);
+    ui.notifications.info('Imported data from The Whale directly');
+  } catch (err) {
+    ui.notifications.error(`Direct import failed: ${err.message}`);
+  }
 });
 
 /** Validate JSON structure and subtype */

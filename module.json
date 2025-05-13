@@ -11,5 +11,7 @@
   "packs": [],
   "esmodules": [],
   "languages": [],
-  "url": "https://github.com/LaboonLaboon/WhaleImporter"
+  "url": "https://github.com/LaboonLaboon/WhaleImporter",
+  "manifest": "https://raw.githubusercontent.com/LaboonLaboon/WhaleImporter/main/module.json",
+  "download": "https://github.com/LaboonLaboon/WhaleImporter/archive/refs/heads/main.zip"
 }

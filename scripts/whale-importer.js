@@ -174,6 +174,8 @@ function mapItemData(type, raw) {
       sys.usage = raw.usage || 'equipped';
       break;
     }
+      break;
+    }
     }
     }
 

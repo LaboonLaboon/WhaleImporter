@@ -132,7 +132,8 @@ function mapItemData(type, raw) {
       break;
     }
 
-    // CYBERWARE: {
+    // CYBERWARE
+    case 'cyberware': {
       sys.cyberware = {
         attackmod: raw.attackmod || 0,
         rof: raw.rof || 0,

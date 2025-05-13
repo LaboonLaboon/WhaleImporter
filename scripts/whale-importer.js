@@ -1,18 +1,13 @@
 Hooks.once('init', () => console.log("Whale Importer | Initializing v1.5.0"));
 
-// Add Import button to Actors directory
-// Add Import button to Actors directory
-Hooks.on('renderActorDirectory', (directory, html) => {
-  // Only in Actor directory
-  if (directory.documentName !== 'Actor') return;
+// Add Import from Whale button to the Actors directory
+Hooks.on('renderActorDirectory', (app, html) => {
   // Prevent duplicates
   if (html.find('.import-whale').length) return;
-  // Create import button
+  // Insert button into the directory footer
   const footer = html.find('.directory-footer');
   const btn = $(
-    `<button class="import-whale btn">
-       <i class="fas fa-file-import"></i> Import from Whale
-     </button>`
+    `<button class="import-whale btn"><i class="fas fa-file-import"></i> Import from Whale</button>`
   );
   btn.on('click', () => new WhaleImportDialog().render(true));
   footer.append(btn);

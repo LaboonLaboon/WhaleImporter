@@ -1,8 +1,6 @@
-Hooks.once('init', () => {
-  console.log("Whale Importer | Initializing v1.3.0");
-});
+Hooks.once('init', () => console.log("Whale Importer | Initializing v1.4.0"));
 
-// Add import button in Actor directory
+// Inject import button in Actors directory
 Hooks.on('renderActorDirectory', (app, html) => {
   if (html.find('.import-whale').length) return;
   const footer = html.find('.directory-footer');
@@ -11,159 +9,132 @@ Hooks.on('renderActorDirectory', (app, html) => {
   footer.prepend(btn);
 });
 
-/**
- * Validate the top-level structure
- */
+/** Validate basic JSON structure */
 function validateEntity(data) {
   if (!data.entityType || !['Actor','Item','RollTable'].includes(data.entityType))
-    throw new Error('Missing or invalid `entityType` (must be Actor, Item, or RollTable)');
-  if (!data.name) throw new Error('Missing `name`');
-  if (data.entityType === 'Item' && !data.type)
-    throw new Error('Missing Item `type` (e.g., weapon, armor)');
-  if (data.entityType === 'Actor' && !data.type)
-    throw new Error('Missing Actor `type` (e.g., mook, character)');
+    throw new Error('Invalid entityType');
+  if (!data.name) throw new Error('Missing name');
+  if (data.entityType==='Item' && !data.type) throw new Error('Missing Item type');
+  if (data.entityType==='Actor'&& !data.type) throw new Error('Missing Actor type');
 }
 
-/**
- * Map generic JSON fields to the Cyberpunk RED Item schema
- */
-function mapItemData(type, rawData) {
-  const mapped = {};
-  // Common fields
-  if (rawData.description) mapped.description = { value: rawData.description };
-  if (rawData.price != null) mapped.price = rawData.price;
-  if (rawData.rarity) mapped.rarity = rawData.rarity;
-  if (rawData.category) mapped.category = rawData.category;
-
-  switch (type) {
-    case 'weapon': {
-      // Rate of Fire and Damage
-      mapped.ROF = rawData.rof;
-      mapped.damage = rawData.damage;
-      // Melee vs Ranged
-      const melee = rawData.melee === true || rawData.type === 'melee';
-      mapped.ranged = !melee;
-      // Weapon Type (e.g., SMG, Handgun, Assault Rifle)
-      mapped.weaponType = rawData.weaponType || rawData.category;
-      // Skill (must match system, e.g., Handgun, Brawling)
-      mapped.skill = rawData.skill || (melee ? 'Brawling' : 'Handgun');
-      // Handling
-      mapped.hands = rawData.handsRequired || 1;
-      mapped.conceal = !!rawData.conceal;
-      // Magazine and ammo
-      mapped.magazineSize = rawData.magazine || rawData.ammo;
-      mapped.loadedAmmo = rawData.ammo || rawData.magazine;
-      mapped.compatibleAmmo = rawData.ammoType;
-      // DV Table
-      mapped.dvTable = rawData.dvTable || (rawData.range ? `DV ${rawData.range}` : null);
-      // Autofire & Suppressive
-      mapped.autofire = rawData.autofire || rawData.fireMode || 1;
-      mapped.suppressive = !!rawData.suppressive;
+/** Map raw data to system schema for each item type */
+function mapItemData(type, d) {
+  const m = {};
+  // universal mappings
+  if (d.description) m.description = { value: d.description };
+  if (d.price != null) m.price = d.price;
+  if (d.category) m.category = d.category;
+  if (d.rarity) m.rarity = d.rarity;
+  if (d.slots != null) m.slots = d.slots;
+  if (d.conceal != null) m.conceal = !!d.conceal;
+  if (d.brand) m.brand = d.brand;
+  switch(type) {
+    case 'weapon':
+      m.ROF = d.rof; m.damage = d.damage;
+      m.ranged = !(d.melee||d.type==='melee');
+      m.weaponType = d.weaponType||d.category; m.skill=d.skill;
+      m.hands = d.handsRequired; m.conceal = !!d.conceal;
+      m.magazineSize = d.magazine; m.loadedAmmo=d.loadedAmmo||d.ammo;
+      m.compatibleAmmo = d.ammoType;
+      m.dvTable = d.dvTable;
+      m.autofire = d.autofire; m.suppressive = !!d.suppressive;
+      if (Array.isArray(d.attachments)) m.attachments = d.attachments;
+      if (d.special) m.special = d.special;
       break;
-    }
     case 'armor':
-      mapped.SP = rawData.sp;
-      mapped.location = rawData.location;
+      m.SP = d.sp; m.location = d.location; break;
+    case 'clothing':
+      m.amount = d.amount; m.electronic = !!d.electronic;
+      m.providesHardening = !!d.providesHardening;
       break;
-    case 'ammo':
-      mapped.quantity = rawData.quantity;
+    case 'cyberware': case 'upgrade': case 'program': case 'gear':
+      // handle special flags for electronics
+      m.electronic = !!d.electronic;
+      if (d.providesHardening!=null) m.providesHardening = !!d.providesHardening;
+      if (d.special) m.special = d.special;
       break;
-    // Extend for other item types as needed
+    case 'ammo': {
+      // Ammo sheet fields
+      m.amount = d.amount != null ? d.amount : 1;
+      m.quantity = d.quantity != null ? d.quantity : m.amount;
+      if (d.variety) m.variety = d.variety;
+      if (d.type) m.type = d.type;
+      if (d.ablationAmount != null) m.ablationAmount = d.ablationAmount;
+      if (d.modifyDamage != null) m.modifyDamage = !!d.modifyDamage;
+      if (d.modifyAutofireMax != null) m.modifyAutofireMax = !!d.modifyAutofireMax;
+      break;
+    }
+    case 'vehicle': {
+      // Vehicle sheet fields
+      if (d.structuralDamagePoints != null) m.structuralDamagePoints = d.structuralDamagePoints;
+      if (d.seats != null) m.seats = d.seats;
+      if (d.combatSpeed != null) m.combatSpeed = d.combatSpeed;
+      if (d.speedNarrative != null) m.speedNarrative = d.speedNarrative;
+      if (d.slots != null) m.slots = d.slots;
+      break;
+    }
+    case 'skill':
+      m.category = d.category; m.difficulty=d.difficulty;
+      m.basic = !!d.basic; m.level=d.level; m.stat=d.stat;
+      break;
+    case 'role':
+      m.mainAbilityName = d.mainAbilityName; m.abilityRank=d.abilityRank;
+      m.hasRoll = !!d.hasRoll; m.addRoleAbilityRank=!!d.addRoleAbilityRank;
+      m.stat=d.stat; m.skill=d.skill;
+      break;
+    case 'program':
+      m.programSize=d.programSize; m.class=d.class;
+      m.ATK=d.ATK; m.DEF=d.DEF; m.REZ=d.REZ;
+      break;
+    case 'architecture':
+      m.layers = d.layers; m.DV=d.DV; break;
+    case 'cyberdeck':
+      m.electronic=!!d.electronic; m.providesHardening=!!d.providesHardening; break;
+    case 'critical':
+      m.location=d.location; m.quickFixType=d.quickFixType;
+      m.quickFixDV=d.quickFixDV; m.treatmentType=d.treatmentType;
+      m.treatmentDV=d.treatmentDV; m.increasesDeathSave=!!d.increasesDeathSave;
+      break;
   }
-
-  // Attachments or upgrades slots
-  if (Array.isArray(rawData.attachments)) mapped.attachments = rawData.attachments;
-  if (rawData.slots != null) mapped.slots = rawData.slots;
-  return mapped;
-}
+  return m;
 }
 
-/**
- * Create an independent Item document
- */
-async function createItemDocument(data) {
-  const itemType = data.type;
-  const itemPayload = {
-    name: data.name,
-    type: itemType,
-    system: mapItemData(itemType, data.data || {}),
-    img: data.img || undefined
-  };
-  return Item.create(itemPayload);
+/** Create an Item document */
+async function createItemDocument(e) {
+  const payload={ name:e.name,type:e.type,system:mapItemData(e.type,e.data||{}),img:e.img };
+  return Item.create(payload);
 }
 
-/**
- * Process and import payload: Actors, individual Items, or RollTables.
- */
+/** Import loop */
 async function processImportPayload(raw) {
-  const entries = Array.isArray(raw) ? raw : [raw];
-  for (const entry of entries) {
-    validateEntity(entry);
-    if (entry.entityType === 'Item') {
-      await createItemDocument(entry);
-    }
-    else if (entry.entityType === 'Actor') {
-      // Create actor with base attributes
-      const aType = entry.type;
-      const actorData = {
-        name: entry.name,
-        type: aType,
-        system: {
-          stats: entry.data.stats,
-          role: entry.data.role,
-          reputation: entry.data.reputation || 0
-        },
-        img: entry.img || undefined
-      };
-      const actor = await Actor.create(actorData, { renderSheet: true });
-      // Create embedded items (weapons, armor, gear, cyberware, etc.)
-      const itemsToImport = [];
-      for (const w of entry.data.weapons || []) itemsToImport.push({ ...w, entityType: 'Item', type: 'weapon' });
-      for (const g of entry.data.gear || [])    itemsToImport.push({ ...g, entityType: 'Item', type: 'gear' });
-      for (const a of entry.data.armor ? [entry.data.armor] : []) itemsToImport.push({ ...a, entityType: 'Item', type: 'armor' });
-      for (const c of entry.data.cyberware || []) itemsToImport.push({ ...c, entityType: 'Item', type: 'cyberware' });
-      // Map each to valid create payload
-      const embedded = itemsToImport.map(i => ({
-        name: i.name,
-        type: i.type,
-        system: mapItemData(i.type, i),
-        img: i.img || undefined
-      }));
-      await actor.createEmbeddedDocuments('Item', embedded);
-      // Skills integration
-      if (entry.data.skills) {
-        await actor.update({
-          'system.skills': entry.data.skills
-        });
-      }
-    }
-    else if (entry.entityType === 'RollTable') {
-      await RollTable.create({ name: entry.name, img: entry.img, results: entry.results });
+  const arr=Array.isArray(raw)?raw:[raw];
+  for(const e of arr){validateEntity(e);
+    if(e.entityType==='Item') await createItemDocument(e);
+    else if(e.entityType==='Actor'){
+      const act=await Actor.create({name:e.name,type:e.type,system:{stats:e.data.stats,role:e.data.role,reputation:e.data.reputation||0},img:e.img});
+      // embed weapons
+      const items=[];
+      (e.data.weapons||[]).forEach(w=>items.push({entityType:'Item',type:'weapon',name:w.name,data:w,img:w.img}));
+      (e.data.armor?[{entityType:'Item',type:'armor',name:e.data.armor.name,data:e.data.armor,img:e.data.armor.img}]:[]).forEach(x=>items.push(x));
+      ['gear','cyberware','upgrades','programs','architecture','vehicle','clothing','critical','skill','role','cyberdeck','ammo'].forEach(key=>{
+        (e.data[key]||[]).forEach(i=>items.push({entityType:'Item',type:key,name:i.name||i,data:i,img:i.img}));
+      });
+      const docs=await Promise.all(items.map(i=>({name:i.name,type:i.type,system:mapItemData(i.type,i.data||{}),img:i.img})).map(o=>act.createEmbeddedDocuments('Item',[o])));
+      // skills
+      if(e.data.skills) await act.update({'system.skills':e.data.skills});
+    } else if(e.entityType==='RollTable'){
+      await RollTable.create({name:e.name,img:e.img,results:e.results});
     }
   }
   ui.notifications.info('Whale Importer | Import complete');
 }
 
-/**
- * Dialog for pasting JSON
- */
-class WhaleImportDialog extends FormApplication {
-  static get defaultOptions() {
-    return mergeObject(super.defaultOptions, {
-      id: 'whale-importer-dialog',
-      title: 'Import from The Whale',
-      template: 'modules/whale-importer/templates/import-dialog.html',
-      width: 600,
-      closeOnSubmit: true
-    });
-  }
-  getData() { return {}; }
-  async _updateObject(event, formData) {
-    const raw = this.element.find('textarea[name="json-input"]').val();
-    let payload;
-    try { payload = JSON.parse(raw); }
-    catch { return ui.notifications.error('Invalid JSON'); }
-    try { await processImportPayload(payload); }
-    catch (err) { ui.notifications.error(`Import failed: ${err.message}`); }
-  }
+/** Import dialog */
+class WhaleImportDialog extends FormApplication{
+  static get defaultOptions(){return mergeObject(super.defaultOptions,{id:'whale-importer-dialog',title:'Import from The Whale',template:'modules/whale-importer/templates/import-dialog.html',width:600,closeOnSubmit:true});}
+  getData(){return{};}
+  async _updateObject(ev,fd){
+    let raw=this.element.find('textarea[name="json-input"]').val();
+    try{const payload=JSON.parse(raw); await processImportPayload(payload);}catch(err){ui.notifications.error('Import failed: '+err.message);}  }
 }

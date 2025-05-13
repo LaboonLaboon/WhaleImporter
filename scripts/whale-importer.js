@@ -1,7 +1,7 @@
 Hooks.once('init', () => console.log("Whale Importer | Initializing v1.4.1"));
 
 // Inject import button in Actors directory
-Hooks.on('renderActorDirectory', (app, html) => {
+Hooks.on('renderActorsDirectory', (app, html) => {
   if (html.find('.import-whale').length) return;
   const footer = html.find('.directory-footer');
   const btn = $(`<button class='import-whale btn'><i class='fas fa-file-import'></i> Import from Whale</button>`);

@@ -46,22 +46,40 @@ function mapItemData(type, raw) {
 
   // Type-specific based on packs/core definitions
   switch (type) {
-    case 'weapon':
+    case 'weapon': {
+      sys.attackmod = raw.attackmod != null ? raw.attackmod : 0;
       sys.rof = raw.rof;
       sys.damage = raw.damage;
-      sys.rangedWeapon = !!raw.rangedWeapon;
-      sys.weaponType = raw.weaponType.toLowerCase().replace(/ /g,'_');
+      sys.ammoVariety = raw.ammoType ? [raw.ammoType] : [];
+      sys.brand = raw.brand || "";
+      sys.concealable = { concealable: !!raw.conceal, isConcealed: false };
+      sys.critFailEffect = raw.special || "";
+      sys.description = { value: raw.description || "" };
+      sys.dvTable = raw.dvTable || "";
+      sys.equipped = raw.equipped || "owned";
+      sys.favorite = raw.favorite != null ? raw.favorite : false;
+      sys.fireModes = { autoFire: raw.autofire != null ? raw.autofire : 0, suppressiveFire: !!raw.suppressive };
+      sys.handsReq = raw.handsRequired || 1;
+      sys.installedItems = {
+        allowed: true,
+        allowedTypes: ["itemUpgrade","ammo"],
+        list: [],
+        slots: raw.slots || 0,
+        usedSlots: 0
+      };
+      sys.isRanged = !!raw.rangedWeapon;
+      sys.magazine = { max: raw.magazine || 0, value: raw.loadedAmmo || 0 };
+      sys.price = { market: raw.price != null ? raw.price : 0 };
+      sys.quality = raw.quality || raw.rarity || "standard";
+      sys.revealed = raw.revealed != null ? raw.revealed : true;
+      sys.source = raw.source || { book: "Core", page: 0 };
+      sys.unarmedAutomaticCalculation = raw.unarmedAutomaticCalculation != null ? raw.unarmedAutomaticCalculation : true;
+      sys.usage = raw.usage || "equipped";
+      sys.usesType = raw.usesType || "magazine";
       sys.weaponSkill = raw.skill;
-      sys.handsRequired = raw.handsRequired;
-      sys.concealable = !!raw.conceal;
-      sys.magazine = { max: raw.magazine, value: raw.loadedAmmo || raw.ammo };
-      sys.compatibleAmmo = raw.ammoType;
-      sys.dvTable = raw.dvTable;
-      sys.autofireMaximumMultiplier = raw.autofire;
-      sys.hasSuppressiveFire = !!raw.suppressive;
-      sys.attachments = raw.attachments || [];
-      sys.critFailEffect = raw.special || '';
+      sys.weaponType = raw.weaponType ? raw.weaponType.toLowerCase().replace(/ /g, "") : "";
       break;
+    }
     case 'armor':
       sys.sp = raw.sp;
       sys.location = raw.location;

@@ -50,23 +50,27 @@ function mapItemData(type, raw) {
   if (raw.brand) sys.brand = raw.brand;
   // Type-specific
   switch (type) {
-    case 'weapon':
-      sys.rof = raw.rof;
-      sys.damage = raw.damage;
-      sys.rangedWeapon = !!raw.rangedWeapon;
-      sys.weaponType = raw.weaponType;
-      sys.skill = raw.skill;
-      sys.handsRequired = raw.handsRequired;
-      sys.conceal = !!raw.conceal;
-      sys.magazineSize = raw.magazine;
-      sys.loadedAmmo = raw.loadedAmmo;
-      sys.compatibleAmmo = raw.ammoType;
-      sys.dvTable = raw.dvTable;
-      sys.autofire = raw.autofire;
-      sys.suppressive = !!raw.suppressive;
-      sys.attachments = Array.isArray(raw.attachments) ? raw.attachments : [];
-      sys.special = raw.special;
+    case 'weapon': {
+      // Populate nested weapon data
+      sys.weapon = {
+        rof: raw.rof,
+        damage: raw.damage,
+        rangedWeapon: !!raw.rangedWeapon,
+        weaponType: raw.weaponType,
+        skill: raw.skill,
+        handsRequired: raw.handsRequired || 1,
+        conceal: !!raw.conceal,
+        magazineSize: raw.magazine,
+        loadedAmmo: raw.loadedAmmo || raw.ammo,
+        compatibleAmmo: raw.ammoType,
+        dvTable: raw.dvTable,
+        autofire: raw.autofire,
+        suppressive: !!raw.suppressive,
+        attachments: Array.isArray(raw.attachments) ? raw.attachments : [],
+        special: raw.special || ''
+      };
       break;
+    }
     case 'armor':
       sys.SP = raw.sp;
       sys.location = raw.location;

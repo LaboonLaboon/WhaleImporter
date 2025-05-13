@@ -1,10 +1,9 @@
 <form>
   <div class="form-group">
-    <label>Paste JSON output (single object or array) from The Whale:</label>
-    <textarea name="json-input" rows="15" placeholder="[{ 'entityType': 'Item', 'name': '...', 'type': 'weapon', 'data': {...} }]" required></textarea>
+    <label>Paste JSON output (single entity or array) from The Whale:</label>
+    <textarea name="json-input" rows="15" placeholder="[{ 'entityType': 'Actor', 'type': 'mook', 'name': '...', 'data': {...} }]" required></textarea>
   </div>
   <div class="form-buttons">
     <button type="submit" class="btn import"><i class="fas fa-file-import"></i> Import</button>
   </div>
-  <p class="notes">Omit the `img` field to let Foundry apply the system’s default icons.</p>
 </form>

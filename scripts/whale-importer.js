@@ -1,87 +1,140 @@
 Hooks.once('init', () => {
-  console.log("Whale Importer | Initializing");
+  console.log("Whale Importer | Initializing v1.3.0");
 });
 
-// Add import button whenever the Actor directory is rendered
+// Add import button in Actor directory
 Hooks.on('renderActorDirectory', (app, html) => {
   if (html.find('.import-whale').length) return;
   const footer = html.find('.directory-footer');
-  const btn = $(
-    `<button class='import-whale btn'>
-      <i class='fas fa-file-import'></i> Import from Whale
-    </button>`
-  );
+  const btn = $(`<button class='import-whale btn'><i class='fas fa-file-import'></i> Import from Whale</button>`);
   btn.on('click', () => new WhaleImportDialog().render(true));
   footer.prepend(btn);
 });
 
-// Listen for direct exports from The Whale UI
-window.addEventListener('message', async event => {
-  if (event.origin !== 'https://chatgpt.com') return;
-  const payload = event.data?.whaleImport;
-  if (!payload) return;
-  try {
-    await processImportPayload(payload);
-    ui.notifications.info('Imported data from The Whale directly');
-  } catch (err) {
-    ui.notifications.error(`Direct import failed: ${err.message}`);
-  }
-});
-
-/** Validate JSON structure */
+/**
+ * Validate the top-level structure
+ */
 function validateEntity(data) {
-  if (!data.entityType || !['Actor','Item','RollTable'].includes(data.entityType)) {
+  if (!data.entityType || !['Actor','Item','RollTable'].includes(data.entityType))
     throw new Error('Missing or invalid `entityType` (must be Actor, Item, or RollTable)');
-  }
   if (!data.name) throw new Error('Missing `name`');
-  if (data.entityType === 'Item' && !data.type) throw new Error('Missing Item `type` (e.g., weapon, armor)');
-  if (data.entityType === 'Actor' && !data.type) throw new Error('Missing Actor `type` (e.g., mook, character)');
+  if (data.entityType === 'Item' && !data.type)
+    throw new Error('Missing Item `type` (e.g., weapon, armor)');
+  if (data.entityType === 'Actor' && !data.type)
+    throw new Error('Missing Actor `type` (e.g., mook, character)');
 }
 
 /**
- * Process and import entities, preferring root-level `data.type` and ignoring nested.
+ * Map generic JSON fields to the Cyberpunk RED Item schema
+ */
+function mapItemData(type, rawData) {
+  const mapped = {};
+  // Common fields
+  if (rawData.description) mapped.description = { value: rawData.description };
+  if (rawData.price != null) mapped.price = rawData.price;
+  if (rawData.rarity) mapped.rarity = rawData.rarity;
+  if (rawData.category) mapped.category = rawData.category;
+
+  switch (type) {
+    case 'weapon':
+      mapped.ROF = rawData.rof;
+      mapped.damage = rawData.damage;
+      mapped.skill = rawData.type === 'melee' ? 'Brawling' : 'Handgun';
+      mapped.hands = rawData.handsRequired || 1;
+      mapped.conceal = !!rawData.conceal;
+      mapped.magazineSize = rawData.magazine || rawData.ammo;
+      mapped.loadedAmmo = rawData.ammo || rawData.magazine;
+      mapped.dvTable = rawData.range ? `DV ${rawData.range}` : null;
+      mapped.autofire = rawData.autofire || 1;
+      mapped.suppressive = !!rawData.suppressive;
+      if (rawData.ammoType) mapped.ammoType = rawData.ammoType;
+      break;
+    case 'armor':
+      mapped.SP = rawData.sp;
+      mapped.location = rawData.location;
+      break;
+    case 'ammo':
+      mapped.quantity = rawData.quantity;
+      break;
+    // Add other item types as needed
+    default: break;
+  }
+
+  // Attachments or upgrades
+  if (Array.isArray(rawData.attachments)) mapped.attachments = rawData.attachments;
+  if (rawData.slots != null) mapped.slots = rawData.slots;
+  return mapped;
+}
+
+/**
+ * Create an independent Item document
+ */
+async function createItemDocument(data) {
+  const itemType = data.type;
+  const itemPayload = {
+    name: data.name,
+    type: itemType,
+    system: mapItemData(itemType, data.data || {}),
+    img: data.img || undefined
+  };
+  return Item.create(itemPayload);
+}
+
+/**
+ * Process and import payload: Actors, individual Items, or RollTables.
  */
 async function processImportPayload(raw) {
   const entries = Array.isArray(raw) ? raw : [raw];
-  for (const data of entries) {
-    validateEntity(data);
-    const docType = data.entityType;
-
-    // Determine subtype from root-level `type`, fallback to nested `data.type` if necessary
-    const subtype = data.type || data.data?.type;
-    if (!subtype) throw new Error('Missing subtype `type` field for ' + docType);
-
-    // Build createData, including img only if provided (Foundry will assign default icons otherwise)
-    const createData = { name: data.name };
-    if (data.img) createData.img = data.img;
-
-    if (docType === 'Item') {
-      // Set Foundry item type
-      createData.type = subtype;
-      // Prepare data-only payload (strip nested type)
-      const itemData = { ...data.data };
-      delete itemData.type;
-      createData.data = itemData;
-      await Item.create(createData);
+  for (const entry of entries) {
+    validateEntity(entry);
+    if (entry.entityType === 'Item') {
+      await createItemDocument(entry);
     }
-    else if (docType === 'Actor') {
-      createData.type = subtype;
-      const actorData = { ...data.data };
-      delete actorData.type;
-      createData.token = data.token || {};
-      createData.data = actorData;
-      await Actor.create(createData, { renderSheet: true });
+    else if (entry.entityType === 'Actor') {
+      // Create actor with base attributes
+      const aType = entry.type;
+      const actorData = {
+        name: entry.name,
+        type: aType,
+        system: {
+          stats: entry.data.stats,
+          role: entry.data.role,
+          reputation: entry.data.reputation || 0
+        },
+        img: entry.img || undefined
+      };
+      const actor = await Actor.create(actorData, { renderSheet: true });
+      // Create embedded items (weapons, armor, gear, cyberware, etc.)
+      const itemsToImport = [];
+      for (const w of entry.data.weapons || []) itemsToImport.push({ ...w, entityType: 'Item', type: 'weapon' });
+      for (const g of entry.data.gear || [])    itemsToImport.push({ ...g, entityType: 'Item', type: 'gear' });
+      for (const a of entry.data.armor ? [entry.data.armor] : []) itemsToImport.push({ ...a, entityType: 'Item', type: 'armor' });
+      for (const c of entry.data.cyberware || []) itemsToImport.push({ ...c, entityType: 'Item', type: 'cyberware' });
+      // Map each to valid create payload
+      const embedded = itemsToImport.map(i => ({
+        name: i.name,
+        type: i.type,
+        system: mapItemData(i.type, i),
+        img: i.img || undefined
+      }));
+      await actor.createEmbeddedDocuments('Item', embedded);
+      // Skills integration
+      if (entry.data.skills) {
+        await actor.update({
+          'system.skills': entry.data.skills
+        });
+      }
     }
-    else if (docType === 'RollTable') {
-      const tableData = { name: data.name }; if (data.img) tableData.img = data.img;
-      tableData.results = data.results;
-      await RollTable.create(tableData);
+    else if (entry.entityType === 'RollTable') {
+      await RollTable.create({ name: entry.name, img: entry.img, results: entry.results });
     }
-
-    console.log(`Whale Importer | Created ${docType}: ${data.name}`);
   }
+  ui.notifications.info('Whale Importer | Import complete');
 }
 
+/**
+ * Dialog for pasting JSON
+ */
 class WhaleImportDialog extends FormApplication {
   static get defaultOptions() {
     return mergeObject(super.defaultOptions, {
@@ -92,20 +145,13 @@ class WhaleImportDialog extends FormApplication {
       closeOnSubmit: true
     });
   }
-
   getData() { return {}; }
-
-  /** Handle form submission */
   async _updateObject(event, formData) {
     const raw = this.element.find('textarea[name="json-input"]').val();
     let payload;
     try { payload = JSON.parse(raw); }
-    catch (err) { return ui.notifications.error('Invalid JSON'); }
-    try {
-      await processImportPayload(payload);
-      ui.notifications.info('Imported pasted data');
-    } catch (err) {
-      ui.notifications.error(`Import failed: ${err.message}`);
-    }
+    catch { return ui.notifications.error('Invalid JSON'); }
+    try { await processImportPayload(payload); }
+    catch (err) { ui.notifications.error(`Import failed: ${err.message}`); }
   }
 }

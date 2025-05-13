@@ -30,8 +30,9 @@ window.addEventListener('message', async event => {
 
 /** Validate JSON structure and subtype */
 function validateEntity(data) {
-  if (!data.entityType || !['Actor','Item','RollTable'].includes(data.entityType))
+  if (!data.entityType || !['Actor','Item','RollTable'].includes(data.entityType)) {
     throw new Error('Missing or invalid `entityType` (must be Actor, Item, or RollTable)');
+  }
   if (!data.name) throw new Error('Missing `name`');
 }
 
@@ -54,16 +55,14 @@ async function processImportPayload(raw) {
       delete itemData.type;
       createData.data = itemData;
       await Item.create(createData);
-    }
-    else if (docType === 'Actor') {
+    } else if (docType === 'Actor') {
       createData.type = data.data.type;
       const actorData = { ...data.data };
       delete actorData.type;
       createData.token = data.token || {};
       createData.data = actorData;
       await Actor.create(createData, { renderSheet: true });
-    }
-    else if (docType === 'RollTable') {
+    } else if (docType === 'RollTable') {
       createData.results = data.results;
       await RollTable.create(createData);
     }
@@ -87,10 +86,14 @@ class WhaleImportDialog extends FormApplication {
 
   /** Handle form submission */
   async _updateObject(event, formData) {
-    const raw = this.element.querySelector('textarea[name="json-input"]').value;
+    // Use jQuery API on this.element (a jQuery object)
+    const raw = this.element.find('textarea[name="json-input"]').val();
     let payload;
-    try { payload = JSON.parse(raw); }
-    catch { return ui.notifications.error('Invalid JSON'); }
+    try {
+      payload = JSON.parse(raw);
+    } catch (err) {
+      return ui.notifications.error('Invalid JSON');
+    }
     try {
       await processImportPayload(payload);
       ui.notifications.info('Imported pasted data');

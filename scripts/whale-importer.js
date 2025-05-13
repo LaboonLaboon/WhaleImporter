@@ -2,12 +2,16 @@ Hooks.once('init', () => console.log("Whale Importer | Initializing v1.4.1"));
 
 // Inject import button in Actors directory
 // Inject import button in Actors directory
-Hooks.on('renderDirectory', (app, html) => {
-  // Only add to Actors directory
-  if (app.options.entity !== 'Actor') return;
+// Inject import button in the Actors directory
+Hooks.on('renderActorDirectory', (app, html) => {
+  // Only add once
   if (html.find('.import-whale').length) return;
   const footer = html.find('.directory-footer');
-  const btn = $(`<button class='import-whale btn'><i class='fas fa-file-import'></i> Import from Whale</button>`);
+  const btn = $(
+    `<button class='import-whale btn'>
+       <i class='fas fa-file-import'></i> Import from Whale
+     </button>`
+  );
   btn.on('click', () => new WhaleImportDialog().render(true));
   footer.prepend(btn);
 });

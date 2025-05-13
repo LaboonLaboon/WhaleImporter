@@ -1,34 +1,17 @@
 Hooks.once('init', () => console.log("Whale Importer | Initializing v1.5.0"));
 
-// Add Import button to Actors directory (bottom footer)
-// Add Import button to Actors directory footer
-Hooks.on('renderActorDirectory', (app, html) => {
-  // Only add for Actor directory
+// Add Import button to Actors directory
+Hooks.on('renderDirectory', (app, html) => {
+  // Only for Actors directory
   if (app.documentName !== 'Actor') return;
-  // Prevent duplicates
+  // Prevent duplicate buttons
   if (html.find('.import-whale').length) return;
-  // Create import button
   const footer = html.find('.directory-footer');
   const btn = $(
-    `<button class="import-whale btn">
-       <i class="fas fa-file-import"></i> Import from Whale
-     </button>`
+    `<button class="import-whale btn"><i class="fas fa-file-import"></i> Import from Whale</button>`
   );
   btn.on('click', () => new WhaleImportDialog().render(true));
-  footer.append(btn);
-});
-
-// Handle postMessage direct exports
-window.addEventListener('message', async event => {
-  if (event.origin !== 'https://chatgpt.com') return;
-  const payload = event.data?.whaleImport;
-  if (!payload) return;
-  try {
-    await processImportPayload(payload);
-    ui.notifications.info('Whale Importer | Direct import complete');
-  } catch (err) {
-    ui.notifications.error(`Whale Importer | Direct import failed: ${err.message}`);
-  }
+  footer.prepend(btn);
 });
 
 /** Basic JSON validation */

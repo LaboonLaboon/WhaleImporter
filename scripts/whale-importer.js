@@ -28,16 +28,18 @@ window.addEventListener('message', async event => {
   }
 });
 
-/** Validate JSON structure and subtype */
+/** Validate JSON structure */
 function validateEntity(data) {
   if (!data.entityType || !['Actor','Item','RollTable'].includes(data.entityType)) {
     throw new Error('Missing or invalid `entityType` (must be Actor, Item, or RollTable)');
   }
   if (!data.name) throw new Error('Missing `name`');
+  if (data.entityType === 'Item' && !data.type) throw new Error('Missing Item `type` (e.g., weapon, armor)');
+  if (data.entityType === 'Actor' && !data.type) throw new Error('Missing Actor `type` (e.g., mook, character)');
 }
 
 /**
- * Process and import entities, using default Foundry icons if img is omitted.
+ * Process and import entities, preferring root-level `data.type` and ignoring nested.
  */
 async function processImportPayload(raw) {
   const entries = Array.isArray(raw) ? raw : [raw];
@@ -45,26 +47,35 @@ async function processImportPayload(raw) {
     validateEntity(data);
     const docType = data.entityType;
 
-    // Build createData, omitting img if not provided so Foundry uses its default
-    let createData = { name: data.name };
+    // Determine subtype from root-level `type`, fallback to nested `data.type` if necessary
+    const subtype = data.type || data.data?.type;
+    if (!subtype) throw new Error('Missing subtype `type` field for ' + docType);
+
+    // Build createData, including img only if provided (Foundry will assign default icons otherwise)
+    const createData = { name: data.name };
     if (data.img) createData.img = data.img;
 
     if (docType === 'Item') {
-      createData.type = data.data.type;
+      // Set Foundry item type
+      createData.type = subtype;
+      // Prepare data-only payload (strip nested type)
       const itemData = { ...data.data };
       delete itemData.type;
       createData.data = itemData;
       await Item.create(createData);
-    } else if (docType === 'Actor') {
-      createData.type = data.data.type;
+    }
+    else if (docType === 'Actor') {
+      createData.type = subtype;
       const actorData = { ...data.data };
       delete actorData.type;
       createData.token = data.token || {};
       createData.data = actorData;
       await Actor.create(createData, { renderSheet: true });
-    } else if (docType === 'RollTable') {
-      createData.results = data.results;
-      await RollTable.create(createData);
+    }
+    else if (docType === 'RollTable') {
+      const tableData = { name: data.name }; if (data.img) tableData.img = data.img;
+      tableData.results = data.results;
+      await RollTable.create(tableData);
     }
 
     console.log(`Whale Importer | Created ${docType}: ${data.name}`);
@@ -86,14 +97,10 @@ class WhaleImportDialog extends FormApplication {
 
   /** Handle form submission */
   async _updateObject(event, formData) {
-    // Use jQuery API on this.element (a jQuery object)
     const raw = this.element.find('textarea[name="json-input"]').val();
     let payload;
-    try {
-      payload = JSON.parse(raw);
-    } catch (err) {
-      return ui.notifications.error('Invalid JSON');
-    }
+    try { payload = JSON.parse(raw); }
+    catch (err) { return ui.notifications.error('Invalid JSON'); }
     try {
       await processImportPayload(payload);
       ui.notifications.info('Imported pasted data');

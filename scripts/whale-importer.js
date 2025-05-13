@@ -35,6 +35,8 @@ function validateEntity(data) {
 
 /** Map raw JSON fields into CPR core schema */
 function mapItemData(type, raw) {
+  // If user provided full system object (from YAML), use it directly
+  if (raw.system && typeof raw.system === 'object') return raw.system;
   const sys = {};
   // Universal
   if (raw.description) sys.description = { value: raw.description };
@@ -47,38 +49,39 @@ function mapItemData(type, raw) {
   // Type-specific based on packs/core definitions
   switch (type) {
     case 'weapon': {
-      sys.attackmod = raw.attackmod != null ? raw.attackmod : 0;
-      sys.rof = raw.rof;
-      sys.damage = raw.damage;
-      sys.ammoVariety = raw.ammoType ? [raw.ammoType] : [];
-      sys.brand = raw.brand || "";
-      sys.concealable = { concealable: !!raw.conceal, isConcealed: false };
-      sys.critFailEffect = raw.special || "";
-      sys.description = { value: raw.description || "" };
-      sys.dvTable = raw.dvTable || "";
-      sys.equipped = raw.equipped || "owned";
-      sys.favorite = raw.favorite != null ? raw.favorite : false;
-      sys.fireModes = { autoFire: raw.autofire != null ? raw.autofire : 0, suppressiveFire: !!raw.suppressive };
-      sys.handsReq = raw.handsRequired || 1;
-      sys.installedItems = {
-        allowed: true,
-        allowedTypes: ["itemUpgrade","ammo"],
-        list: [],
-        slots: raw.slots || 0,
-        usedSlots: 0
+      // Map raw values to compendium skill and ammo IDs
+      const skillMap = {
+        SMG: 'Handgun', AssaultRifle: 'Handgun', MediumPistol: 'Handgun', HeavyPistol: 'Handgun', SniperRifle: 'Handgun', Shotgun: 'Handgun',
+        Bow: 'Archery', ThrownWeapon: 'Archery', RocketLauncher: 'Heavy Weapon', GrenadeLauncher: 'Heavy Weapon',
+        CombatKnife: 'Melee Weapon', BaseballBat: 'Melee Weapon', Tomahawk: 'Melee Weapon', 'Melee': 'Melee Weapon'
       };
-      sys.isRanged = !!raw.rangedWeapon;
-      sys.magazine = { max: raw.magazine || 0, value: raw.loadedAmmo || 0 };
-      sys.price = { market: raw.price != null ? raw.price : 0 };
-      sys.quality = raw.quality || raw.rarity || "standard";
-      sys.revealed = raw.revealed != null ? raw.revealed : true;
-      sys.source = raw.source || { book: "Core", page: 0 };
-      sys.unarmedAutomaticCalculation = raw.unarmedAutomaticCalculation != null ? raw.unarmedAutomaticCalculation : true;
-      sys.usage = raw.usage || "equipped";
-      sys.usesType = raw.usesType || "magazine";
-      sys.weaponSkill = raw.skill;
-      sys.weaponType = raw.weaponType ? raw.weaponType.toLowerCase().replace(/ /g, "") : "";
+      const ammoMap = {
+        paintball: 'paintball', rifle: 'rifle', arrow: 'arrow', shotgunShell: 'shotgunShell', shotgunSlug: 'shotgunSlug', grenade: 'grenade',
+        heavyPistol: 'heavyPistol', vHeavyPistol: 'vHeavyPistol', medPistol: 'medPistol', battery: 'battery', rocket: 'rocket', customAmmo: 'customAmmo'
+      };
+      const mappedSkill = skillMap[raw.skill] || raw.skill;
+      const ammoKey = raw.ammoType ? raw.ammoType.replace(/ /g,'') : '';
+      const mappedAmmo = ammoMap[ammoKey] || ammoKey;
+      sys.weapon = {
+        rof: raw.rof,
+        damage: raw.damage,
+        isRanged: !!raw.rangedWeapon,
+        weaponType: raw.weaponType.toLowerCase().replace(/ /g,'_'),
+        weaponSkill: mappedSkill,
+        handsReq: raw.handsRequired,
+        concealable: { concealable: !!raw.conceal, isConcealed: false },
+        magazine: { max: raw.magazine, value: raw.loadedAmmo || 0 },
+        ammoVariety: mappedAmmo ? [mappedAmmo] : [],
+        dvTable: raw.dvTable,
+        fireModes: { autoFire: raw.autofire || 0, suppressiveFire: !!raw.suppressive },
+        installedItems: { allowed: true, allowedTypes: ['itemUpgrade','ammo'], list: [], slots: raw.slots || 0, usedSlots: 0 },
+        critFailEffect: raw.special || '',
+        price: { market: raw.price || 0 },
+        quality: raw.quality || raw.rarity || 'standard',
+        description: { value: raw.description || '' }
+      };
       break;
+    }
     }
     case 'armor':
       sys.sp = raw.sp;

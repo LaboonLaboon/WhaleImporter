@@ -35,24 +35,25 @@ function mapItemData(type, d) {
   const nested = {};
   switch(type) {
     case 'weapon': {
-      nested.weapon = {
-        rof: d.rof,
-        damage: d.damage,
-        rangedWeapon: !(d.melee === true || d.type === 'melee'),
-        weaponType: d.weaponType || d.category,
-        skill: d.skill,
-        handsRequired: d.handsRequired || 1,
-        conceal: !!d.conceal,
-        magazineSize: d.magazine,
-        loadedAmmo: d.loadedAmmo || d.ammo,
-        compatibleAmmo: d.ammoType,
-        dvTable: d.dvTable,
-        autofire: d.autofire,
-        suppressive: !!d.suppressive,
-        attachments: Array.isArray(d.attachments) ? d.attachments : [],
-        special: d.special || ''
-      };
+      // Weapon fields flattened at system root
+      common.rof = d.rof;
+      common.damage = d.damage;
+      common.rangedWeapon = !(d.melee === true || d.type === 'melee');
+      common.weaponType = d.weaponType || d.category;
+      common.skill = d.skill;
+      common.handsRequired = d.handsRequired || 1;
+      common.conceal = !!d.conceal;
+      common.magazineSize = d.magazine;
+      common.loadedAmmo = d.loadedAmmo || d.ammo;
+      common.compatibleAmmo = d.ammoType;
+      common.dvTable = d.dvTable;
+      common.autofire = d.autofire;
+      common.suppressive = !!d.suppressive;
+      common.attachments = Array.isArray(d.attachments) ? d.attachments : [];
+      common.special = d.special || '';
+      common.description = d.description;
       break;
+    }
     }
     case 'armor':
       nested.armor = { SP: d.sp, location: d.location };

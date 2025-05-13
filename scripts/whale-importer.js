@@ -3,14 +3,15 @@ Hooks.once('init', () => {
 });
 
 Hooks.once('ready', () => {
-  // Add import button to Actors directory footer
-  const actorDir = ui.actors;
-  const footer = actorDir.element.find('.directory-footer');
-  const btn = $("<button class='import-whale btn'><i class='fas fa-file-import'></i> Import from Whale</button>");
-  btn.on('click', () => new WhaleImportDialog().render(true));
+  // Add import button to Actors directory
+  const footer = ui.actors.element.querySelector('.directory-footer');
+  const btn = document.createElement('button');
+  btn.className = 'import-whale btn';
+  btn.innerHTML = '<i class="fas fa-file-import"></i> Import from Whale';
+  btn.addEventListener('click', () => new WhaleImportDialog().render(true));
   footer.prepend(btn);
 
-  // Listen for direct messages from The Whale UI
+  // Listen for direct exports from The Whale UI
   window.addEventListener('message', async event => {
     if (event.origin !== 'https://chatgpt.com') return;
     const payload = event.data?.whaleImport;
@@ -24,48 +25,47 @@ Hooks.once('ready', () => {
   });
 });
 
+/** Validate JSON structure and subtype */
 function validateEntity(data) {
-  if (!data.type || !['Actor','Item','RollTable'].includes(data.type))
-    throw new Error('Missing or invalid `type` (must be Actor, Item, or RollTable)');
-  if (!data.name || typeof data.name !== 'string')
-    throw new Error('Missing or invalid `name`');
-  switch (data.type) {
-    case 'Actor': {
-      const valid = Object.keys(CONFIG.Actor.typeLabels || {});
-      if (!data.data?.type || !valid.includes(data.data.type))
-        throw new Error(`Invalid Actor subtype: ${data.data?.type}`);
-      break;
-    }
-    case 'Item': {
-      const valid = Object.keys(CONFIG.Item.typeLabels || {});
-      if (!data.data?.type || !valid.includes(data.data.type))
-        throw new Error(`Invalid Item subtype: ${data.data?.type}`);
-      break;
-    }
-    case 'RollTable': {
-      if (!Array.isArray(data.results))
-        throw new Error('RollTable missing `results` array');
-      break;
-    }
-  }
+  if (!data.entityType || !['Actor','Item','RollTable'].includes(data.entityType))
+    throw new Error('Missing or invalid `entityType` (must be Actor, Item, or RollTable)');
+  if (!data.name) throw new Error('Missing `name`');
 }
 
-async function processImportPayload(payload) {
-  const items = Array.isArray(payload) ? payload : [payload];
-  for (const data of items) {
+/**
+ * Process and import entities, using default Foundry icons if img is omitted.
+ */
+async function processImportPayload(raw) {
+  const entries = Array.isArray(raw) ? raw : [raw];
+  for (const data of entries) {
     validateEntity(data);
-    switch (data.type) {
-      case 'Actor':
-        await Actor.create(data, { renderSheet: true });
-        break;
-      case 'Item':
-        await Item.create(data);
-        break;
-      case 'RollTable':
-        await RollTable.create(data);
-        break;
+    const docType = data.entityType;
+
+    // Build createData, omitting img if not provided so Foundry uses its default
+    let createData = { name: data.name };
+    if (data.img) createData.img = data.img;
+
+    if (docType === 'Item') {
+      createData.type = data.data.type;
+      const itemData = { ...data.data };
+      delete itemData.type;
+      createData.data = itemData;
+      await Item.create(createData);
     }
-    console.log(`Whale Importer | Imported ${data.type}: ${data.name}`);
+    else if (docType === 'Actor') {
+      createData.type = data.data.type;
+      const actorData = { ...data.data };
+      delete actorData.type;
+      createData.token = data.token || {};
+      createData.data = actorData;
+      await Actor.create(createData, { renderSheet: true });
+    }
+    else if (docType === 'RollTable') {
+      createData.results = data.results;
+      await RollTable.create(createData);
+    }
+
+    console.log(`Whale Importer | Created ${docType}: ${data.name}`);
   }
 }
 
@@ -75,21 +75,24 @@ class WhaleImportDialog extends FormApplication {
       id: 'whale-importer-dialog',
       title: 'Import from The Whale',
       template: 'modules/whale-importer/templates/import-dialog.html',
-      width: 600
+      width: 600,
+      closeOnSubmit: true
     });
   }
+
   getData() { return {}; }
+
+  /** Handle form submission */
   async _updateObject(event, formData) {
-    const raw = this.element.find('textarea[name="json-input"]').val().trim();
+    const raw = this.element.querySelector('textarea[name="json-input"]').value;
     let payload;
     try { payload = JSON.parse(raw); }
-    catch { return ui.notifications.error('Invalid JSON format'); }
+    catch { return ui.notifications.error('Invalid JSON'); }
     try {
       await processImportPayload(payload);
-      ui.notifications.info('Imported pasted data successfully');
+      ui.notifications.info('Imported pasted data');
     } catch (err) {
       ui.notifications.error(`Import failed: ${err.message}`);
     }
-    this.close();
   }
 }

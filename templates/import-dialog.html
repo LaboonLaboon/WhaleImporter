@@ -1,7 +1,10 @@
 <form>
   <div class="form-group">
     <label>Paste JSON output (single object or array) from The Whale:</label>
-    <textarea name="json-input" rows="15" placeholder="[{ 'type': 'Actor', 'name': '...'}]"></textarea>
+    <textarea name="json-input" rows="15" placeholder="[{ 'entityType': 'Item', 'name': '...', 'type': 'weapon', 'data': {...} }]" required></textarea>
   </div>
-  <p class="notes">Or use The Whale UI’s “Export to Foundry” button for direct import.</p>
+  <div class="form-buttons">
+    <button type="submit" class="btn import"><i class="fas fa-file-import"></i> Import</button>
+  </div>
+  <p class="notes">Omit the `img` field to let Foundry apply the system’s default icons.</p>
 </form>

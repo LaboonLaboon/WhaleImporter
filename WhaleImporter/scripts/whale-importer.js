@@ -12,7 +12,6 @@ Hooks.once('ready', () => {
 
   // Listen for direct messages from The Whale UI
   window.addEventListener('message', async event => {
-    // Adjust origin to match The Whale custom GPT domain
     if (event.origin !== 'https://chatgpt.com') return;
     const payload = event.data?.whaleImport;
     if (!payload) return;
@@ -25,46 +24,32 @@ Hooks.once('ready', () => {
   });
 });
 
-/**
- * Validate entity JSON against the Cyberpunk RED system schema.
- * Throws an Error if validation fails.
- */
 function validateEntity(data) {
-  if (!data.type || !['Actor','Item','RollTable'].includes(data.type)) {
+  if (!data.type || !['Actor','Item','RollTable'].includes(data.type))
     throw new Error('Missing or invalid `type` (must be Actor, Item, or RollTable)');
-  }
-  if (!data.name || typeof data.name !== 'string') {
+  if (!data.name || typeof data.name !== 'string')
     throw new Error('Missing or invalid `name`');
-  }
   switch (data.type) {
     case 'Actor': {
-      const validActorTypes = Object.keys(CONFIG.Actor.typeLabels || {});
-      const subtype = data.data?.type;
-      if (!subtype || !validActorTypes.includes(subtype)) {
-        throw new Error(`Invalid Actor subtype: ${subtype}`);
-      }
+      const valid = Object.keys(CONFIG.Actor.typeLabels || {});
+      if (!data.data?.type || !valid.includes(data.data.type))
+        throw new Error(`Invalid Actor subtype: ${data.data?.type}`);
       break;
     }
     case 'Item': {
-      const validItemTypes = Object.keys(CONFIG.Item.typeLabels || {});
-      const subtype = data.data?.type;
-      if (!subtype || !validItemTypes.includes(subtype)) {
-        throw new Error(`Invalid Item subtype: ${subtype}`);
-      }
+      const valid = Object.keys(CONFIG.Item.typeLabels || {});
+      if (!data.data?.type || !valid.includes(data.data.type))
+        throw new Error(`Invalid Item subtype: ${data.data?.type}`);
       break;
     }
     case 'RollTable': {
-      if (!Array.isArray(data.results)) {
+      if (!Array.isArray(data.results))
         throw new Error('RollTable missing `results` array');
-      }
       break;
     }
   }
 }
 
-/**
- * Process and import either a single entity or an array of entities.
- */
 async function processImportPayload(payload) {
   const items = Array.isArray(payload) ? payload : [payload];
   for (const data of items) {
@@ -97,11 +82,8 @@ class WhaleImportDialog extends FormApplication {
   async _updateObject(event, formData) {
     const raw = this.element.find('textarea[name="json-input"]').val().trim();
     let payload;
-    try {
-      payload = JSON.parse(raw);
-    } catch (err) {
-      return ui.notifications.error('Invalid JSON format');
-    }
+    try { payload = JSON.parse(raw); }
+    catch { return ui.notifications.error('Invalid JSON format'); }
     try {
       await processImportPayload(payload);
       ui.notifications.info('Imported pasted data successfully');
